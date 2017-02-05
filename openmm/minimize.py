@@ -52,12 +52,14 @@ modeller.addHydrogens(forcefield, pH=7.0) # already does EM
 
 # Build rhombic dodecahedron box (square xy-plane)
 # 0. Center system at origin
+logging.info('Centering protein in box')
 com_xyz = modeller.positions.mean()
 for i, xyz in enumerate(modeller.positions):
     modeller.positions[i] = xyz - com_xyz
 
+logging.info('Calculating optimal box size')
 # 1. Move coordinates to numpy array for efficiency
-xyz = np.array([(x._value, y._value, z._value) for x, y, z in modeller.positions])
+xyz = np.array(((x._value, y._value, z._value) for x, y, z in modeller.positions))
 xyz_size = np.amax(xyz, axis=0) - np.amin(xyz, axis=0)
 xyz_diam = np.max(pdist(xyz, 'euclidean'))
 d = xyz_diam + user_args.pad*2
@@ -99,18 +101,25 @@ system = forcefield.createSystem(modeller.topology, nonbondedMethod=app.PME,
                                  nonbondedCutoff=1*units.nanometer, constraints=app.HBonds)
 
 # Add restraints on protein heavy atoms
-logging.info('Adding pos. res. on non-hydrogen protein atoms')
-all_atoms = list(modeller.topology.atoms())
-posre = mm.CustomExternalForce("k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
-posre_K = 1000.0 
-posre.addGlobalParameter("k", posre_K*units.kilocalories_per_mole/units.angstroms**2)
-posre.addPerParticleParameter("x0")
-posre.addPerParticleParameter("y0")
-posre.addPerParticleParameter("z0")
-for i, atom_crd in enumerate(modeller.getPositions()):
-    if all_atoms[i].element != 'H':
-        posre.addParticle(i, atom_crd.value_in_unit(units.nanometers))
-system.addForce(posre)
+# Breaking for some reason..
+#logging.info('Adding pos. res. on non-hydrogen protein atoms')
+#all_atoms = list(modeller.topology.atoms())
+#posre = mm.CustomExternalForce("0.5*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
+#posre_K = 100.0 
+#posre.addGlobalParameter("k", posre_K*units.kilojoule_per_mole/units.nanometer**2)
+#posre.addPerParticleParameter("x0")
+#posre.addPerParticleParameter("y0")
+#posre.addPerParticleParameter("z0")
+
+#solvent = set(('HOH', 'NA', 'CL'))
+#counter = 0 
+#for i, atom_crd in enumerate(modeller.getPositions()):
+#    cur_atom = all_atoms[i]
+#    if cur_atom.residue.name not in solvent and cur_atom.element != app.element.hydrogen:
+#        counter += 1
+#        posre.addParticle(i, atom_crd.value_in_unit(units.nanometers))
+#system.addForce(posre)
+#logging.info('{}/{} atoms restrained ({:8.3f} kJ.mol-1.nm-2)'.format(counter, len(all_atoms), posre_K))
 
 # Setup System
 integrator = mm.LangevinIntegrator(300*units.kelvin, 1/units.picosecond, 0.002*units.picoseconds)
@@ -121,15 +130,37 @@ platform = simulation.context.getPlatform()
 logging.info('Using platform: {}'.format(platform.getName()))
 
 # Minimize
+state = simulation.context.getState(getEnergy=True)
+xyz_pot_energy = state.getPotentialEnergy().value_in_unit_system(units.md_unit_system)
+logging.info('Initial Potential Energy: {:10.3f}'.format(xyz_pot_energy))
+
 logging.info('Running energy minimization')
-simulation.minimizeEnergy(maxIterations=500)
+simulation.minimizeEnergy(maxIterations=1000, tolerance=10*units.kilojoule/units.mole)
+
+state = simulation.context.getState(getEnergy=True, getPositions=True)
+xyz_pot_energy = state.getPotentialEnergy().value_in_unit_system(units.md_unit_system)
+logging.info('Potential Energy after minimization: {:10.3f}'.format(xyz_pot_energy))
 
 # Write minimized file
-positions = simulation.context.getState(getPositions=True).getPositions()
+positions = state.getPositions()
 mini_name = "{}_minimized.pdb".format(user_args.pdb[:-4])
 app.PDBFile.writeFile(simulation.topology, positions, open(mini_name, 'w'))
 
 # Remove restraints
 #system.removeForce(posre)
+
+## Heat up system to 300K (NVT)
+nvt_time_in_ns = 1
+logging.info('Equilibrating system at 300K for {} nanosecond'.format(nvt_time_in_ns))
+nvt_steps = int(nvt_time_in_ns / 0.000002)
+simulation.context.setVelocitiesToTemperature(300*units.kelvin)
+simulation.reporters.append(app.DCDReporter('trajectory.dcd', 5000))
+simulation.reporters.append(app.StateDataReporter(sys.stdout, 50, step=True, 
+                                                  potentialEnergy=True, kineticEnergy=True, 
+                                                  totalEnergy=True, temperature=True, 
+                                                  progress=True, remainingTime=True, speed=True, 
+                                                  totalSteps=nvt_steps, separator='\t'))
+simulation.step(nvt_steps) 
+simulation.saveState('nvt.xml')
 
 logging.info('Done')
