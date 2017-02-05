@@ -59,7 +59,7 @@ for i, xyz in enumerate(modeller.positions):
 
 logging.info('Calculating optimal box size')
 # 1. Move coordinates to numpy array for efficiency
-xyz = np.array(((x._value, y._value, z._value) for x, y, z in modeller.positions))
+xyz = np.array([(x._value, y._value, z._value) for x, y, z in modeller.positions])
 xyz_size = np.amax(xyz, axis=0) - np.amin(xyz, axis=0)
 xyz_diam = np.max(pdist(xyz, 'euclidean'))
 d = xyz_diam + user_args.pad*2
