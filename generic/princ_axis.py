@@ -61,7 +61,7 @@ for ax in range(3):
 
 # Get largest princ. axis
 lpc_i = np.argmax(eval)
-lpc = evec[:,lpc_i]
+lpc = evec[lpc_i]
 
 print('[=] Largest principal axis: [ {0[0]:10.3f} {0[1]:10.3f} {0[2]:10.3f} ] ({1:10.3f})'.format(lpc, eval[lpc_i]))
 # Build rotation matrix to align onto target vector (0,0,1)
