@@ -18,8 +18,19 @@ import os
 import sys
 
 import numpy as np
-from scipy.spatial.distance import pdist
 
+# cython-optmized pairwise distance function
+# profiled to run in ~50% of the time of pdist
+# much less memory hungry. No storage of all distances.
+try:
+    from _pwdistance import pw_dist
+except ImportError:
+    logging.info('Could not load numba. Using scipy for dist. calcs.')
+    from scipy.spatial.distance import pdist
+    def pw_dist(xyz_array):
+        return np.amax(pdist(xyz_array, 'euclidean'))
+
+import mdtraj as md
 import simtk.openmm.app as app
 import simtk.openmm as mm
 import simtk.unit as units
@@ -32,14 +43,29 @@ logging.basicConfig(level=logging.INFO,
 ##
 # Parse user input and options
 ap = argparse.ArgumentParser(description=__doc__)
+
 ap.add_argument('pdb', help='Input PDB file')
 ap.add_argument('-p', '--pad', type=float, help='Box Padding in nm', default=1.0)
+
+opt_plat = ap.add_mutually_exclusive_group()
+opt_plat.add_argument('--cpu', action="store_true", help='Use CPU platform')
+opt_plat.add_argument('--gpu', action="store_true", help='Use CUDA GPU platform')
+
+ap.set_defaults(cpu=False, gpu=True)
 user_args = ap.parse_args()
 
 if not os.path.isfile(user_args.pdb):
     raise IOError('Could not read/open input file: {}'.format(user_args.pdb))
 
-# Read PDB file and set forcefield
+# Define platform: CPU/GPU
+if user_args.gpu:
+    platform = mm.Platform.getPlatformByName('CUDA')
+else:
+    platform = mm.Platform.getPlatformByName('CPU')
+
+logging.info('Using platform: {}'.format(platform.getName()))
+
+# Read PDB file
 logging.info('Reading PDB file: {}'.format(user_args.pdb))
 pdb = app.PDBFile(user_args.pdb)
 forcefield = app.ForceField('amber99sbildn.xml', 'tip3p.xml')
@@ -47,23 +73,22 @@ forcefield = app.ForceField('amber99sbildn.xml', 'tip3p.xml')
 # Processing structure and build box
 logging.info('Adding missing atoms')
 modeller = app.Modeller(pdb.topology, pdb.positions)
-modeller.addHydrogens(forcefield, pH=7.0) # already does EM
-
+modeller.addHydrogens(forcefield, pH=7.0, platform=platform) # already does EM
 
 # Build rhombic dodecahedron box (square xy-plane)
-# 0. Center system at origin
-logging.info('Centering protein in box')
+# 0. Center system at origin and orient along principal axis (Z=longest)
+logging.info('Moving system to origin')
 com_xyz = modeller.positions.mean()
-for i, xyz in enumerate(modeller.positions):
-    modeller.positions[i] = xyz - com_xyz
+for i, xyz_i in enumerate(modeller.positions):
+    modeller.positions[i] = xyz_i - com_xyz
 
 logging.info('Calculating optimal box size')
 # 1. Move coordinates to numpy array for efficiency
-xyz = np.array([(x._value, y._value, z._value) for x, y, z in modeller.positions])
+xyz = np.array([(x._value, y._value, z._value) for x, y, z in modeller.positions], dtype=np.float)
 xyz_size = np.amax(xyz, axis=0) - np.amin(xyz, axis=0)
-xyz_diam = np.max(pdist(xyz, 'euclidean'))
-d = xyz_diam + user_args.pad*2
+xyz_diam = pw_dist(xyz)
 
+d = xyz_diam + user_args.pad*2
 u = np.array((d, 0, 0))
 v = np.array((0, d, 0))
 w = np.array((d/2, d/2, np.sqrt(2)*d/2))
@@ -122,12 +147,9 @@ system = forcefield.createSystem(modeller.topology, nonbondedMethod=app.PME,
 #logging.info('{}/{} atoms restrained ({:8.3f} kJ.mol-1.nm-2)'.format(counter, len(all_atoms), posre_K))
 
 # Setup System
-integrator = mm.LangevinIntegrator(300*units.kelvin, 1/units.picosecond, 0.002*units.picoseconds)
-simulation = app.Simulation(modeller.topology, system, integrator)
+integrator = mm.LangevinIntegrator(1*units.kelvin, 1/units.picosecond, 0.002*units.picoseconds)
+simulation = app.Simulation(modeller.topology, system, integrator, platform=platform)
 simulation.context.setPositions(modeller.positions)
-
-platform = simulation.context.getPlatform()
-logging.info('Using platform: {}'.format(platform.getName()))
 
 # Minimize
 state = simulation.context.getState(getEnergy=True)
@@ -149,18 +171,23 @@ app.PDBFile.writeFile(simulation.topology, positions, open(mini_name, 'w'))
 # Remove restraints
 #system.removeForce(posre)
 
-## Heat up system to 300K (NVT)
-nvt_time_in_ns = 1
-logging.info('Equilibrating system at 300K for {} nanosecond'.format(nvt_time_in_ns))
-nvt_steps = int(nvt_time_in_ns / 0.000002)
-simulation.context.setVelocitiesToTemperature(300*units.kelvin)
-simulation.reporters.append(app.DCDReporter('trajectory.dcd', 5000))
 simulation.reporters.append(app.StateDataReporter(sys.stdout, 50, step=True, 
                                                   potentialEnergy=True, kineticEnergy=True, 
                                                   totalEnergy=True, temperature=True, 
-                                                  progress=True, remainingTime=True, speed=True, 
-                                                  totalSteps=nvt_steps, separator='\t'))
+                                                  speed=True, 
+                                                  separator='\t'))
+
+## Heat up system to 300K (NVT) in steps
+nvt_time_in_ns = 0.1
+nvt_steps = int(nvt_time_in_ns / 0.000002)
+for t_in_K in range(1, 300, 10):
+    logging.info('Heating system: {:>3d}K'.format(t_in_K))
+    integrator.setTemperature(t_in_K*units.kelvin)
+    simulation.step(50)
+
+simulation.reporters.append(app.DCDReporter('trajectory.dcd', 5000))
+logging.info('Equilibrating system at 300K for {} nanosecond'.format(nvt_time_in_ns))
 simulation.step(nvt_steps) 
-simulation.saveState('nvt.xml')
+simulation.saveState('{}_NVT.xml'.format(user_args.pdb[:-4]))
 
 logging.info('Done')
