@@ -14,6 +14,7 @@ from __future__ import print_function, division
 import argparse
 import logging
 import os
+import random
 import sys
 
 import numpy as np
@@ -34,16 +35,13 @@ import simtk.openmm.app as app
 import simtk.openmm as mm
 import simtk.unit as units
 
-# Format logger
-logging.basicConfig(level=logging.INFO,
-                    format='[%(asctime)s] %(message)s',
-                    datefmt='%Y/%m/%d %H:%M:%S')
-
 ##
 # Parse user input and options
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('pdb', help='Input PDB file')
+ap.add_argument('--log', type=str, help='Log file name')
 ap.add_argument('--pad', type=float, default=1.0, help='Box Padding in nm')
+ap.add_argument('--seed', type=int, default=917, help='Random Number Seed')
 
 opt_plat = ap.add_mutually_exclusive_group()
 opt_plat.add_argument('--cpu', action="store_true", help='Use CPU platform')
@@ -51,6 +49,26 @@ opt_plat.add_argument('--cuda', action="store_true", help='Use CUDA platform')
 
 ap.set_defaults(cpu=False, cuda=True)
 user_args = ap.parse_args()
+
+# Set random seed for all Python processed (integrators too, further below)
+_SEED = user_args.seed
+random.seed(_SEED)
+
+# Format logger
+if not user_args.log:
+    logfile = sys.stdout
+    logging.basicConfig(stream=sys.stdout,
+                        level=logging.INFO,
+                        format='[%(asctime)s] %(message)s',
+                        datefmt='%Y/%m/%d %H:%M:%S')
+
+else:
+    logfile = user_args.log
+    logging.basicConfig(filename=user_args.log,
+                        filemode='w',
+                        level=logging.INFO,
+                        format='[%(asctime)s] %(message)s',
+                        datefmt='%Y/%m/%d %H:%M:%S')
 
 if not os.path.isfile(user_args.pdb):
     raise IOError('Could not read/open input file: {}'.format(user_args.pdb))
@@ -152,6 +170,8 @@ md_temp = 1*units.kelvin
 md_step = 0.002*units.picoseconds
 md_fric = 1/units.picosecond
 integrator = mm.LangevinIntegrator(md_temp, md_fric, md_step)
+integrator.setRandomNumberSeed(_SEED)
+
 simulation = app.Simulation(modeller.topology, system, integrator,
                             platform=platform)
 simulation.context.setPositions(modeller.positions)
@@ -178,7 +198,7 @@ app.PDBFile.writeFile(simulation.topology, positions, open(mini_name, 'w'))
 # Remove restraints
 # system.removeForce(posre)
 reporters = simulation.reporters
-reporters.append(app.StateDataReporter(sys.stdout, 50, step=True,
+reporters.append(app.StateDataReporter(logfile, 50, step=True,
                                        potentialEnergy=True,
                                        kineticEnergy=True,
                                        totalEnergy=True, temperature=True,
@@ -190,7 +210,6 @@ reporters.append(app.StateDataReporter(sys.stdout, 50, step=True,
 time_in_ns = 0.1
 nvt_steps = int(time_in_ns / 0.000002)
 for t_in_K in range(1, 300, 50):
-    logging.info('Heating system: {:>3d}K'.format(t_in_K))
     integrator.setTemperature(t_in_K*units.kelvin)
     simulation.step(50)
 
@@ -200,3 +219,4 @@ simulation.step(nvt_steps)
 simulation.saveState('{}_NVT.xml'.format(user_args.pdb[:-4]))
 
 logging.info('Done')
+logging.shutdown()
