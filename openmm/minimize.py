@@ -71,18 +71,18 @@ else:
 
 if not os.path.isfile(user_args.pdb):
     raise IOError('Could not read/open input file: {}'.format(user_args.pdb))
+else:
+    rootname = os.path.basename(user_args.pdb)[:-4]
 
 # Define platform: CPU/CUDA
 if user_args.cuda:
-    num_gpu = os.getenv('CUDA_VISIBLE_DEVICES')
-    if not num_gpu:
+    gpu_dev = os.getenv('CUDA_VISIBLE_DEVICES')
+    if not gpu_dev:
         logging.error('No CUDA GPUs detected')
         sys.exit(1)
-    else:
-        devices = ','.join(map(str, range(int(num_gpu))))
         
     platform = mm.Platform.getPlatformByName('CUDA')
-    properties = {'DeviceIndex': devices}
+    properties = {'DeviceIndex': gpu_dev}
 else:
     platform = mm.Platform.getPlatformByName('CPU')
     properties = {}
@@ -192,7 +192,7 @@ logging.info('Initial Potential Energy: {:10.3f}'.format(pot_ene))
 
 # Write initial coordinates
 positions = state.getPositions()
-fname = "{}_initial.pdb".format(user_args.pdb[:-4])
+fname = "{}_initial.pdb".format(rootname)
 with open(fname, 'w') as handle:
     app.PDBFile.writeFile(simulation.topology, positions, handle)
 
@@ -206,7 +206,7 @@ logging.info('Potential Energy after minimization: {:10.3f}'.format(pot_ene))
 
 # Write minimized file
 positions = state.getPositions()
-fname = "{}_minimized.pdb".format(user_args.pdb[:-4])
+fname = "{}_minimized.pdb".format(rootname)
 with open(fname, 'w') as handle:
     app.PDBFile.writeFile(simulation.topology, positions, handle)
 
@@ -221,11 +221,13 @@ reporters.append(app.StateDataReporter(logfile, 100, step=True,
                                        separator='\t'))
 
 ##
-simulation.reporters.append(app.DCDReporter('trajectory.dcd', 5000))
+time_in_ns = 0.5
+n_of_steps = time_in_ns / (0.002/1000)
+simulation.reporters.append(app.DCDReporter('{}_nvt.dcd'.format(rootname), 5000))
 logging.info('Equilibrating system at 300K for {} ns'.format(time_in_ns))
 simulation.integrator.setTemperature(300*units.kelvin)
-simulation.step(nvt_steps)
-simulation.saveState('{}_NVT.xml'.format(user_args.pdb[:-4]))
+simulation.step(n_of_steps)
+simulation.saveState('{}_NVT.xml'.format(rootname))
 
 logging.info('Done')
 logging.shutdown()
