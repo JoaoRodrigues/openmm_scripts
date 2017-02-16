@@ -13,7 +13,6 @@ from __future__ import print_function, division
 
 import argparse
 import logging
-import math
 import os
 import sys
 
@@ -27,38 +26,37 @@ try:
 except ImportError:
     logging.info('Could not load numba. Using scipy for dist. calcs.')
     from scipy.spatial.distance import pdist
+
     def pw_dist(xyz_array):
         return np.amax(pdist(xyz_array, 'euclidean'))
 
-import mdtraj as md
 import simtk.openmm.app as app
 import simtk.openmm as mm
 import simtk.unit as units
 
 # Format logger
-logging.basicConfig(level=logging.INFO, 
-                    format='[%(asctime)s] %(message)s', 
+logging.basicConfig(level=logging.INFO,
+                    format='[%(asctime)s] %(message)s',
                     datefmt='%Y/%m/%d %H:%M:%S')
 
 ##
 # Parse user input and options
 ap = argparse.ArgumentParser(description=__doc__)
-
 ap.add_argument('pdb', help='Input PDB file')
-ap.add_argument('-p', '--pad', type=float, help='Box Padding in nm', default=1.0)
+ap.add_argument('--pad', type=float, default=1.0, help='Box Padding in nm')
 
 opt_plat = ap.add_mutually_exclusive_group()
 opt_plat.add_argument('--cpu', action="store_true", help='Use CPU platform')
-opt_plat.add_argument('--gpu', action="store_true", help='Use CUDA GPU platform')
+opt_plat.add_argument('--cuda', action="store_true", help='Use CUDA platform')
 
-ap.set_defaults(cpu=False, gpu=True)
+ap.set_defaults(cpu=False, cuda=True)
 user_args = ap.parse_args()
 
 if not os.path.isfile(user_args.pdb):
     raise IOError('Could not read/open input file: {}'.format(user_args.pdb))
 
-# Define platform: CPU/GPU
-if user_args.gpu:
+# Define platform: CPU/CUDA
+if user_args.cuda:
     platform = mm.Platform.getPlatformByName('CUDA')
 else:
     platform = mm.Platform.getPlatformByName('CPU')
@@ -73,7 +71,7 @@ forcefield = app.ForceField('amber99sbildn.xml', 'tip3p.xml')
 # Processing structure and build box
 logging.info('Adding missing atoms')
 modeller = app.Modeller(pdb.topology, pdb.positions)
-modeller.addHydrogens(forcefield, pH=7.0, platform=platform) # already does EM
+modeller.addHydrogens(forcefield, pH=7.0, platform=platform)  # already does EM
 
 # Build rhombic dodecahedron box (square xy-plane)
 # 0. Center system at origin and orient along principal axis (Z=longest)
@@ -82,9 +80,10 @@ com_xyz = modeller.positions.mean()
 for i, xyz_i in enumerate(modeller.positions):
     modeller.positions[i] = xyz_i - com_xyz
 
-logging.info('Calculating optimal box size')
 # 1. Move coordinates to numpy array for efficiency
-xyz = np.array([(x._value, y._value, z._value) for x, y, z in modeller.positions], dtype=np.float)
+logging.info('Calculating optimal box size')
+_xyz = [(x._value, y._value, z._value) for x, y, z in modeller.positions]
+xyz = np.array(_xyz, dtype=np.float)
 xyz_size = np.amax(xyz, axis=0) - np.amin(xyz, axis=0)
 xyz_diam = pw_dist(xyz)
 
@@ -110,7 +109,7 @@ modeller.topology.setPeriodicBoxVectors((u, v, w))
 
 # Solvate the Box and add counter ions at 0.15 M
 logging.info('Solvating the system')
-modeller.addSolvent(forcefield, model='tip3p', 
+modeller.addSolvent(forcefield, model='tip3p',
                     neutralize=True, ionicStrength=0.15*units.molar)
 
 resname_list = [r.name for r in modeller.topology.residues()]
@@ -122,46 +121,54 @@ logging.info('  num. waters: {:6d}'.format(num_waters))
 logging.info('  num. ions: {:6d} Na {:6d} Cl'.format(num_cation, num_anion))
 
 # Create System
-system = forcefield.createSystem(modeller.topology, nonbondedMethod=app.PME,
-                                 nonbondedCutoff=1*units.nanometer, constraints=app.HBonds)
+system = forcefield.createSystem(modeller.topology,
+                                 nonbondedMethod=app.PME,
+                                 nonbondedCutoff=1*units.nanometer,
+                                 constraints=app.HBonds)
 
 # Add restraints on protein heavy atoms
 # Breaking for some reason..
-#logging.info('Adding pos. res. on non-hydrogen protein atoms')
-#all_atoms = list(modeller.topology.atoms())
-#posre = mm.CustomExternalForce("0.5*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
-#posre_K = 100.0 
-#posre.addGlobalParameter("k", posre_K*units.kilojoule_per_mole/units.nanometer**2)
-#posre.addPerParticleParameter("x0")
-#posre.addPerParticleParameter("y0")
-#posre.addPerParticleParameter("z0")
-
-#solvent = set(('HOH', 'NA', 'CL'))
-#counter = 0 
-#for i, atom_crd in enumerate(modeller.getPositions()):
-#    cur_atom = all_atoms[i]
-#    if cur_atom.residue.name not in solvent and cur_atom.element != app.element.hydrogen:
-#        counter += 1
+# logging.info('Adding pos. res. on non-hydrogen protein atoms')
+# all_atoms = list(modeller.topology.atoms())
+# posre = mm.CustomExternalForce("0.5*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
+# posre_K = 100.0 *units.kilojoule_per_mole/units.nanometer**2
+# posre.addGlobalParameter("k", posre_K)
+# posre.addPerParticleParameter("x0")
+# posre.addPerParticleParameter("y0")
+# posre.addPerParticleParameter("z0")
+#
+# solvent = set(('HOH', 'NA', 'CL'))
+# n_at = 0
+# for i, atom_crd in enumerate(modeller.getPositions()):
+#    at = all_atoms[i]
+#    if at.residue.name not in solvent and at.element != app.element.hydrogen:
+#        n_at += 1
 #        posre.addParticle(i, atom_crd.value_in_unit(units.nanometers))
-#system.addForce(posre)
-#logging.info('{}/{} atoms restrained ({:8.3f} kJ.mol-1.nm-2)'.format(counter, len(all_atoms), posre_K))
+# system.addForce(posre)
+# logging.info('{}/{} atoms restrained (Fc={:.3f} kJ/mol.nm^2)'.format(n_at, len(all_atoms), posre_K))  # noqa: E501
 
 # Setup System
-integrator = mm.LangevinIntegrator(1*units.kelvin, 1/units.picosecond, 0.002*units.picoseconds)
-simulation = app.Simulation(modeller.topology, system, integrator, platform=platform)
+md_temp = 1*units.kelvin
+md_step = 0.002*units.picoseconds
+md_fric = 1/units.picosecond
+integrator = mm.LangevinIntegrator(md_temp, md_fric, md_step)
+simulation = app.Simulation(modeller.topology, system, integrator,
+                            platform=platform)
 simulation.context.setPositions(modeller.positions)
 
+##
 # Minimize
 state = simulation.context.getState(getEnergy=True)
-xyz_pot_energy = state.getPotentialEnergy().value_in_unit_system(units.md_unit_system)
-logging.info('Initial Potential Energy: {:10.3f}'.format(xyz_pot_energy))
+pot_ene = state.getPotentialEnergy().value_in_unit_system(units.md_unit_system)
+logging.info('Initial Potential Energy: {:10.3f}'.format(pot_ene))
 
 logging.info('Running energy minimization')
-simulation.minimizeEnergy(maxIterations=1000, tolerance=10*units.kilojoule/units.mole)
+simulation.minimizeEnergy(maxIterations=1000,
+                          tolerance=10*units.kilojoule/units.mole)
 
 state = simulation.context.getState(getEnergy=True, getPositions=True)
-xyz_pot_energy = state.getPotentialEnergy().value_in_unit_system(units.md_unit_system)
-logging.info('Potential Energy after minimization: {:10.3f}'.format(xyz_pot_energy))
+pot_ene = state.getPotentialEnergy().value_in_unit_system(units.md_unit_system)
+logging.info('Potential Energy after minimization: {:10.3f}'.format(pot_ene))
 
 # Write minimized file
 positions = state.getPositions()
@@ -169,25 +176,27 @@ mini_name = "{}_minimized.pdb".format(user_args.pdb[:-4])
 app.PDBFile.writeFile(simulation.topology, positions, open(mini_name, 'w'))
 
 # Remove restraints
-#system.removeForce(posre)
+# system.removeForce(posre)
+reporters = simulation.reporters
+reporters.append(app.StateDataReporter(sys.stdout, 50, step=True,
+                                       potentialEnergy=True,
+                                       kineticEnergy=True,
+                                       totalEnergy=True, temperature=True,
+                                       speed=True,
+                                       separator='\t'))
 
-simulation.reporters.append(app.StateDataReporter(sys.stdout, 50, step=True, 
-                                                  potentialEnergy=True, kineticEnergy=True, 
-                                                  totalEnergy=True, temperature=True, 
-                                                  speed=True, 
-                                                  separator='\t'))
-
-## Heat up system to 300K (NVT) in steps
-nvt_time_in_ns = 0.1
-nvt_steps = int(nvt_time_in_ns / 0.000002)
-for t_in_K in range(1, 300, 10):
+##
+# Heat up system to 300K (NVT) in steps
+time_in_ns = 0.1
+nvt_steps = int(time_in_ns / 0.000002)
+for t_in_K in range(1, 300, 50):
     logging.info('Heating system: {:>3d}K'.format(t_in_K))
     integrator.setTemperature(t_in_K*units.kelvin)
     simulation.step(50)
 
 simulation.reporters.append(app.DCDReporter('trajectory.dcd', 5000))
-logging.info('Equilibrating system at 300K for {} nanosecond'.format(nvt_time_in_ns))
-simulation.step(nvt_steps) 
+logging.info('Equilibrating system at 300K for {} ns'.format(time_in_ns))
+simulation.step(nvt_steps)
 simulation.saveState('{}_NVT.xml'.format(user_args.pdb[:-4]))
 
 logging.info('Done')
