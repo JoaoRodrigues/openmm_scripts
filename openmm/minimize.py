@@ -63,9 +63,8 @@ if not user_args.log:
                         datefmt='%Y/%m/%d %H:%M:%S')
 
 else:
-    logfile = user_args.log
-    logging.basicConfig(filename=user_args.log,
-                        filemode='w',
+    logfile = open(user_args.log, 'w')
+    logging.basicConfig(stream=logfile,
                         level=logging.INFO,
                         format='[%(asctime)s] %(message)s',
                         datefmt='%Y/%m/%d %H:%M:%S')
@@ -75,9 +74,18 @@ if not os.path.isfile(user_args.pdb):
 
 # Define platform: CPU/CUDA
 if user_args.cuda:
+    num_gpu = os.getenv('CUDA_VISIBLE_DEVICES')
+    if not num_gpu:
+        logging.error('No CUDA GPUs detected')
+        sys.exit(1)
+    else:
+        devices = ','.join(map(str, range(int(num_gpu))))
+        
     platform = mm.Platform.getPlatformByName('CUDA')
+    properties = {'DeviceIndex': devices}
 else:
     platform = mm.Platform.getPlatformByName('CPU')
+    properties = {}
 
 logging.info('Using platform: {}'.format(platform.getName()))
 
@@ -173,7 +181,7 @@ integrator = mm.LangevinIntegrator(md_temp, md_fric, md_step)
 integrator.setRandomNumberSeed(_SEED)
 
 simulation = app.Simulation(modeller.topology, system, integrator,
-                            platform=platform)
+                            platform=platform, platformProperties=properties)
 simulation.context.setPositions(modeller.positions)
 
 ##
@@ -205,7 +213,7 @@ with open(fname, 'w') as handle:
 # Remove restraints
 # system.removeForce(posre)
 reporters = simulation.reporters
-reporters.append(app.StateDataReporter(logfile, 50, step=True,
+reporters.append(app.StateDataReporter(logfile, 100, step=True,
                                        potentialEnergy=True,
                                        kineticEnergy=True,
                                        totalEnergy=True, temperature=True,
@@ -213,15 +221,9 @@ reporters.append(app.StateDataReporter(logfile, 50, step=True,
                                        separator='\t'))
 
 ##
-# Heat up system to 300K (NVT) in steps
-time_in_ns = 0.001
-nvt_steps = int(time_in_ns / 0.000002)
-for t_in_K in range(1, 300, 50):
-    integrator.setTemperature(t_in_K*units.kelvin)
-    simulation.step(50)
-
 simulation.reporters.append(app.DCDReporter('trajectory.dcd', 5000))
 logging.info('Equilibrating system at 300K for {} ns'.format(time_in_ns))
+simulation.integrator.setTemperature(300*units.kelvin)
 simulation.step(nvt_steps)
 simulation.saveState('{}_NVT.xml'.format(user_args.pdb[:-4]))
 
