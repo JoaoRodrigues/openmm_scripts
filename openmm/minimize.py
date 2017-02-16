@@ -178,9 +178,15 @@ simulation.context.setPositions(modeller.positions)
 
 ##
 # Minimize
-state = simulation.context.getState(getEnergy=True)
+state = simulation.context.getState(getEnergy=True, getPositions=True)
 pot_ene = state.getPotentialEnergy().value_in_unit_system(units.md_unit_system)
 logging.info('Initial Potential Energy: {:10.3f}'.format(pot_ene))
+
+# Write initial coordinates
+positions = state.getPositions()
+fname = "{}_initial.pdb".format(user_args.pdb[:-4])
+with open(fname, 'w') as handle:
+    app.PDBFile.writeFile(simulation.topology, positions, handle)
 
 logging.info('Running energy minimization')
 simulation.minimizeEnergy(maxIterations=1000,
@@ -192,8 +198,9 @@ logging.info('Potential Energy after minimization: {:10.3f}'.format(pot_ene))
 
 # Write minimized file
 positions = state.getPositions()
-mini_name = "{}_minimized.pdb".format(user_args.pdb[:-4])
-app.PDBFile.writeFile(simulation.topology, positions, open(mini_name, 'w'))
+fname = "{}_minimized.pdb".format(user_args.pdb[:-4])
+with open(fname, 'w') as handle:
+    app.PDBFile.writeFile(simulation.topology, positions, handle)
 
 # Remove restraints
 # system.removeForce(posre)
@@ -207,7 +214,7 @@ reporters.append(app.StateDataReporter(logfile, 50, step=True,
 
 ##
 # Heat up system to 300K (NVT) in steps
-time_in_ns = 0.1
+time_in_ns = 0.001
 nvt_steps = int(time_in_ns / 0.000002)
 for t_in_K in range(1, 300, 50):
     integrator.setTemperature(t_in_K*units.kelvin)
