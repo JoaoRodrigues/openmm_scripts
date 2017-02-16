@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-Calculates the inertia tensor of a protein and aligns 
-the largest principal component with the reference Z axis.
+Aligns the largest dimension of a protein
+with the reference Z axis.
 
 Uses Ca only.
 
@@ -14,11 +14,6 @@ from __future__ import print_function
 import argparse
 import mdtraj as md
 import numpy as np
-
-# Atomic mass
-#_MASS_C = 12.01070
-_MASS_C = 13.019
-#_MASS_C = 1.008
 
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('pdb', help='Input PDB file')
@@ -37,12 +32,12 @@ print('[=] Shifting coordinates to origin: {:10.3f} {:10.3f} {:10.3f}'.format(*c
 
 # Calculate inertia tensor
 # formulae from wikipedia (center of mass on origin)
-ixx = _MASS_C * np.sum(atoms[:,1] ** 2 + atoms[:,2] ** 2)
-iyy = _MASS_C * np.sum(atoms[:,0] ** 2 + atoms[:,2] ** 2)
-izz = _MASS_C * np.sum(atoms[:,0] ** 2 + atoms[:,1] ** 2)
-ixy = iyx = _MASS_C * -1 * np.sum(atoms[:,0] * atoms[:,1])
-ixz = izx = _MASS_C * -1 * np.sum(atoms[:,0] * atoms[:,2])
-iyz = izy = _MASS_C * -1 * np.sum(atoms[:,1] * atoms[:,2])
+ixx = np.sum(atoms[:,1] ** 2 + atoms[:,2] ** 2)
+iyy = np.sum(atoms[:,0] ** 2 + atoms[:,2] ** 2)
+izz = np.sum(atoms[:,0] ** 2 + atoms[:,1] ** 2)
+ixy = iyx = -1 * np.sum(atoms[:,0] * atoms[:,1])
+ixz = izx = -1 * np.sum(atoms[:,0] * atoms[:,2])
+iyz = izy = -1 * np.sum(atoms[:,1] * atoms[:,2])
 
 print('[=] Inertia Tensor')
 print('  [ {:10.3f} {:10.3f} {:10.3f} ]'.format(ixx, ixy, ixz))
@@ -60,10 +55,11 @@ for ax in range(3):
     print('  [ {0[0]:10.3f} {0[1]:10.3f} {0[2]:10.3f} ] ({1:10.3f})'.format(evec[:,ax], eval[ax]))
 
 # Get largest princ. axis
-lpc_i = np.argmax(eval)
-lpc = evec[lpc_i]
+lpc_i = np.argmin(eval)
+lpc = evec[:, lpc_i]
 
 print('[=] Largest principal axis: [ {0[0]:10.3f} {0[1]:10.3f} {0[2]:10.3f} ] ({1:10.3f})'.format(lpc, eval[lpc_i]))
+
 # Build rotation matrix to align onto target vector (0,0,1)
 # based on GMX Code
 targetvec = np.array([0,0,1], dtype=np.float)
