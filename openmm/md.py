@@ -34,7 +34,7 @@ out_opts.add_argument('--log', type=str, help='Log file name')
 
 # Sim Options
 sim_opts = ap.add_argument_group('Simulation Options')
-gmx_top = os.path.join(os.getenv('GMXDATA'), 'top')
+gmx_top = os.path.join(os.getenv('GMXDATA') or '', 'top')
 sim_opts.add_argument('--ffdir', default=gmx_top,
                       help='GROMACS top/ folder [default: {}]'.format(gmx_top))
 sim_opts.add_argument('--seed', type=int, default=917,
@@ -42,6 +42,10 @@ sim_opts.add_argument('--seed', type=int, default=917,
 sim_opts.add_argument('--restart', action='store_true',
                       help='Ignores any Checkpoint files in the folder.')
 
+sim_opts.add_argument('--equilibration', type=float, default=5.0,
+                      help='Time in ns for equilibration [default: 5.0]')
+sim_opts.add_argument('--production', type=float, default=10.0,
+                      help='Time in ns for production [default: 10.0]')
 
 opt_plat = ap.add_mutually_exclusive_group()
 opt_plat.add_argument('--cpu', action="store_true", help='Use CPU platform')
@@ -100,6 +104,10 @@ else:
     box_vectors = system_gro.getPeriodicBoxVectors()
 
 logging.info('Reading TOP file: {}'.format(user_args.top))
+logging.info('Reading FF definitions from {}'.format(user_args.ffdir))
+if not os.path.isdir(user_args.ffdir):
+    raise IOError('Could not read/open folder: {}'.format(user_args.ffdir))
+
 if not os.path.isfile(user_args.top):
     raise IOError('Could not read/open input file: {}'.format(user_args.top))
 else:
@@ -107,9 +115,6 @@ else:
                                     periodicBoxVectors=box_vectors,
                                     includeDir=user_args.ffdir)
 
-logging.info('Reading FF definitions from {}'.format(user_args.ffdir))
-if not os.path.isdir(user_args.ffdir):
-    raise IOError('Could not read/open folder: {}'.format(user_args.ffdir))
 
 ##
 # Build System
@@ -150,6 +155,7 @@ system.addForce(mm.MonteCarloBarostat(md_pres, md_temp, 25))
 simulation = app.Simulation(system_top.topology, system, integrator,
                             platform=platform, platformProperties=properties)
 simulation.context.setPositions(system_gro.positions)
+simulation.context.setVelocitiesToTemperature(md_temp)
 reporters = simulation.reporters
 
 state = simulation.context.getState(getEnergy=True, getPositions=True)
@@ -178,7 +184,7 @@ if not os.path.isfile(cpt_file) or user_args.restart:
     solvent = set(('HOH', 'NA', 'CL'))
     n_at = 0
     hydrogen = app.element.hydrogen
-    for i, atom_crd in enumerate(system_top.getPositions()):
+    for i, atom_crd in enumerate(system_gro.getPositions()):
         at = all_atoms[i]
         if at.residue.name not in solvent and at.element != hydrogen:
             n_at += 1
@@ -213,13 +219,11 @@ if not os.path.isfile(cpt_file) or user_args.restart:
                                            speed=True,
                                            separator='\t'))
 
-    reporters.append(app.CheckpointReporter(cpt_file, 50000))  # Save every 100 ps # noqa: E501
+    reporters.append(app.CheckpointReporter(cpt_file, 5000))  # Save every 10 ps # noqa: E501
 
     ##
     # Equilibration
-    simulation.context.setVelocitiesToTemperature(md_temp)
-
-    time_in_ns = 5
+    time_in_ns = user_args.equilibration
     n_of_steps = time_in_ns / (0.002/1000)
     reporters.append(app.DCDReporter('{}_nvt.dcd'.format(rootname), 25000))  # 50 ps # noqa: E501
     logging.info('NPT equilibration system at 300K for {} ns'.format(time_in_ns))  # noqa: E501
@@ -235,10 +239,11 @@ elif os.path.isfile(cpt_file) and not user_args.restart:
 
 ##
 # Production
-time_in_ns = 10
+time_in_ns = user_args.production
 n_of_steps = time_in_ns / (0.002/1000)
+simulation.reporters = []
+reporters = simulation.reporters
 
-reporters = []
 reporters.append(app.StateDataReporter(logfile, 100, step=True,
                                        time=True, totalSteps=n_of_steps,
                                        potentialEnergy=True,
@@ -249,7 +254,7 @@ reporters.append(app.StateDataReporter(logfile, 100, step=True,
                                        separator='\t'))
 
 
-reporters.append(app.CheckpointReporter(cpt_file, 50000))  # Save every 100 ps
+reporters.append(app.CheckpointReporter(cpt_file, 5000))  # Save every 10 ps
 logging.info('Running production simulation for {} ns'.format(time_in_ns))
 simulation.step(n_of_steps)
 
