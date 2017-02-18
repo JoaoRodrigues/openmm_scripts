@@ -24,8 +24,9 @@ import numpy as np
 # much less memory hungry. No storage of all distances.
 try:
     from _pwdistance import pw_dist
+    opt_pw = True
 except ImportError:
-    logging.info('Could not load numba. Using scipy for dist. calcs.')
+    opt_pw = False
     from scipy.spatial.distance import pdist
 
     def pw_dist(xyz_array):
@@ -42,6 +43,7 @@ ap.add_argument('pdb', help='Input PDB file')
 ap.add_argument('--log', type=str, help='Log file name')
 ap.add_argument('--pad', type=float, default=1.0, help='Box Padding in nm')
 ap.add_argument('--seed', type=int, default=917, help='Random Number Seed')
+ap.add_argument('--vacuum', action="store_true", help='Does EM in vacuum')
 
 opt_plat = ap.add_mutually_exclusive_group()
 opt_plat.add_argument('--cpu', action="store_true", help='Use CPU platform')
@@ -116,6 +118,8 @@ logging.info('Calculating optimal box size')
 _xyz = [(x._value, y._value, z._value) for x, y, z in modeller.positions]
 xyz = np.array(_xyz, dtype=np.float)
 xyz_size = np.amax(xyz, axis=0) - np.amin(xyz, axis=0)
+if not opt_pw:
+    logging.info('Using slower pairwise distance calculation routine')
 xyz_diam = pw_dist(xyz)
 
 d = xyz_diam + user_args.pad*2
@@ -138,18 +142,19 @@ logging.info('  w = {:6.3f} {:6.3f} {:6.3f}'.format(*w))
 
 modeller.topology.setPeriodicBoxVectors((u, v, w))
 
-# Solvate the Box and add counter ions at 0.15 M
-logging.info('Solvating the system')
-modeller.addSolvent(forcefield, model='tip3p',
-                    neutralize=True, ionicStrength=0.15*units.molar)
+if not user_args.vacuum:
+    # Solvate the Box and add counter ions at 0.15 M
+    logging.info('Solvating the system')
+    modeller.addSolvent(forcefield, model='tip3p',
+                        neutralize=True, ionicStrength=0.15*units.molar)
 
-resname_list = [r.name for r in modeller.topology.residues()]
-num_waters = resname_list.count('HOH')
-num_cation = resname_list.count('NA')
-num_anion = resname_list.count('CL')
+    resname_list = [r.name for r in modeller.topology.residues()]
+    n_waters = resname_list.count('HOH')
+    n_cation = resname_list.count('NA')
+    n_anion = resname_list.count('CL')
 
-logging.info('  num. waters: {:6d}'.format(num_waters))
-logging.info('  num. ions: {:6d} Na {:6d} Cl'.format(num_cation, num_anion))
+    logging.info('  num. waters: {:6d}'.format(n_waters))
+    logging.info('  num. ions: {:6d} Na {:6d} Cl'.format(n_cation, n_anion))
 
 # Create System
 system = forcefield.createSystem(modeller.topology,
@@ -162,8 +167,8 @@ system = forcefield.createSystem(modeller.topology,
 # logging.info('Adding pos. res. on non-hydrogen protein atoms')
 all_atoms = list(modeller.topology.atoms())
 posre = mm.CustomExternalForce("0.5*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
-posre_K = 100.0 * (units.kilojoule_per_mole/units.nanometer**2)
-posre.addGlobalParameter("k", posre_K)
+posre_K = 100.0
+posre.addGlobalParameter("k", posre_K * (units.kilojoule_per_mole/units.nanometer**2))  # noqa: E501
 posre.addPerParticleParameter("x0")
 posre.addPerParticleParameter("y0")
 posre.addPerParticleParameter("z0")
