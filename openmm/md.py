@@ -72,7 +72,7 @@ logging.info('Starting Simulation')
 
 # Define platform: CPU/CUDA
 gpu_res = os.getenv('CUDA_VISIBLE_DEVICES')
-cpu_res = os.getenv('SLURM_NTASKS')
+cpu_res = os.getenv('SLURM_CPUS_PER_TASK')
 properties = {}
 if user_args.cuda:
     if not gpu_res:
