@@ -51,23 +51,20 @@ ap.set_defaults(cpu=False, cuda=True)
 user_args = ap.parse_args()
 
 # Set random seed for all Python processed (integrators too, further below)
-_SEED = user_args.seed
-random.seed(_SEED)
+random.seed(user_args.seed)
 
 # Format logger
 if not user_args.log:
     logfile = sys.stdout
-    logging.basicConfig(stream=sys.stdout,
-                        level=logging.INFO,
-                        format='[%(asctime)s] %(message)s',
-                        datefmt='%Y/%m/%d %H:%M:%S')
-
 else:
     logfile = open(user_args.log, 'w')
-    logging.basicConfig(stream=logfile,
-                        level=logging.INFO,
-                        format='[%(asctime)s] %(message)s',
-                        datefmt='%Y/%m/%d %H:%M:%S')
+
+logging.basicConfig(stream=logfile,
+                    level=logging.INFO,
+                    format='[%(asctime)s] %(message)s',
+                    datefmt='%Y/%m/%d %H:%M:%S')
+
+logging.info('Starting Simulation')
 
 if not os.path.isfile(user_args.pdb):
     raise IOError('Could not read/open input file: {}'.format(user_args.pdb))
@@ -75,17 +72,25 @@ else:
     rootname = os.path.basename(user_args.pdb)[:-4]
 
 # Define platform: CPU/CUDA
+gpu_res = os.getenv('CUDA_VISIBLE_DEVICES')
+cpu_res = os.getenv('SLURM_CPUS_PER_TASK')
+properties = {}
 if user_args.cuda:
-    gpu_dev = os.getenv('CUDA_VISIBLE_DEVICES')
-    if not gpu_dev:
+    if not gpu_res:
         logging.error('No CUDA GPUs detected')
         sys.exit(1)
-        
+
     platform = mm.Platform.getPlatformByName('CUDA')
-    properties = {'DeviceIndex': gpu_dev}
+
+    num_gpu = len(gpu_res.split(','))
+    if num_gpu == 1:
+        properties = {}
+    else:
+        logging.info('Using {}/{} CPUs/GPUs'.format(cpu_res, num_gpu))
+        properties['DeviceIndex'] = gpu_res
 else:
     platform = mm.Platform.getPlatformByName('CPU')
-    properties = {}
+    properties['Threads'] = cpu_res
 
 logging.info('Using platform: {}'.format(platform.getName()))
 
@@ -157,7 +162,7 @@ system = forcefield.createSystem(modeller.topology,
 # logging.info('Adding pos. res. on non-hydrogen protein atoms')
 all_atoms = list(modeller.topology.atoms())
 posre = mm.CustomExternalForce("0.5*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
-posre_K = 100.0 *units.kilojoule_per_mole/units.nanometer**2
+posre_K = 100.0 * (units.kilojoule_per_mole/units.nanometer**2)
 posre.addGlobalParameter("k", posre_K)
 posre.addPerParticleParameter("x0")
 posre.addPerParticleParameter("y0")
@@ -166,10 +171,10 @@ posre.addPerParticleParameter("z0")
 solvent = set(('HOH', 'NA', 'CL'))
 n_at = 0
 for i, atom_crd in enumerate(modeller.getPositions()):
-   at = all_atoms[i]
-   if at.residue.name not in solvent and at.element != app.element.hydrogen:
-       n_at += 1
-       posre.addParticle(i, atom_crd.value_in_unit(units.nanometers))
+    at = all_atoms[i]
+    if at.residue.name not in solvent and at.element != app.element.hydrogen:
+        n_at += 1
+        posre.addParticle(i, atom_crd.value_in_unit(units.nanometers))
 system.addForce(posre)
 logging.info('{}/{} atoms restrained (Fc={:.3f} kJ/mol.nm^2)'.format(n_at, len(all_atoms), posre_K))  # noqa: E501
 
@@ -178,7 +183,7 @@ md_temp = 1*units.kelvin
 md_step = 0.002*units.picoseconds
 md_fric = 1/units.picosecond
 integrator = mm.LangevinIntegrator(md_temp, md_fric, md_step)
-integrator.setRandomNumberSeed(_SEED)
+integrator.setRandomNumberSeed(user_args.seed)
 
 simulation = app.Simulation(modeller.topology, system, integrator,
                             platform=platform, platformProperties=properties)
