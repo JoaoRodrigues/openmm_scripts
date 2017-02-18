@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Molecular Dynamics Simulation of a System.
+Energy minimization of system in a water box.
 Uses a rhombic dodecahedron box and the Amber99sb-ILDN FF (w/ TIP3P).
 Default padding of 1 nm from protein to edge of the box.
 Neutralizes the system and adds ions to 0.15 M.
@@ -155,23 +155,23 @@ system = forcefield.createSystem(modeller.topology,
 # Add restraints on protein heavy atoms
 # Breaking for some reason..
 # logging.info('Adding pos. res. on non-hydrogen protein atoms')
-# all_atoms = list(modeller.topology.atoms())
-# posre = mm.CustomExternalForce("0.5*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
-# posre_K = 100.0 *units.kilojoule_per_mole/units.nanometer**2
-# posre.addGlobalParameter("k", posre_K)
-# posre.addPerParticleParameter("x0")
-# posre.addPerParticleParameter("y0")
-# posre.addPerParticleParameter("z0")
-#
-# solvent = set(('HOH', 'NA', 'CL'))
-# n_at = 0
-# for i, atom_crd in enumerate(modeller.getPositions()):
-#    at = all_atoms[i]
-#    if at.residue.name not in solvent and at.element != app.element.hydrogen:
-#        n_at += 1
-#        posre.addParticle(i, atom_crd.value_in_unit(units.nanometers))
-# system.addForce(posre)
-# logging.info('{}/{} atoms restrained (Fc={:.3f} kJ/mol.nm^2)'.format(n_at, len(all_atoms), posre_K))  # noqa: E501
+all_atoms = list(modeller.topology.atoms())
+posre = mm.CustomExternalForce("0.5*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
+posre_K = 100.0 *units.kilojoule_per_mole/units.nanometer**2
+posre.addGlobalParameter("k", posre_K)
+posre.addPerParticleParameter("x0")
+posre.addPerParticleParameter("y0")
+posre.addPerParticleParameter("z0")
+
+solvent = set(('HOH', 'NA', 'CL'))
+n_at = 0
+for i, atom_crd in enumerate(modeller.getPositions()):
+   at = all_atoms[i]
+   if at.residue.name not in solvent and at.element != app.element.hydrogen:
+       n_at += 1
+       posre.addParticle(i, atom_crd.value_in_unit(units.nanometers))
+system.addForce(posre)
+logging.info('{}/{} atoms restrained (Fc={:.3f} kJ/mol.nm^2)'.format(n_at, len(all_atoms), posre_K))  # noqa: E501
 
 # Setup System
 md_temp = 1*units.kelvin
@@ -209,25 +209,6 @@ positions = state.getPositions()
 fname = "{}_minimized.pdb".format(rootname)
 with open(fname, 'w') as handle:
     app.PDBFile.writeFile(simulation.topology, positions, handle)
-
-# Remove restraints
-# system.removeForce(posre)
-reporters = simulation.reporters
-reporters.append(app.StateDataReporter(logfile, 100, step=True,
-                                       potentialEnergy=True,
-                                       kineticEnergy=True,
-                                       totalEnergy=True, temperature=True,
-                                       speed=True,
-                                       separator='\t'))
-
-##
-time_in_ns = 0.5
-n_of_steps = time_in_ns / (0.002/1000)
-simulation.reporters.append(app.DCDReporter('{}_nvt.dcd'.format(rootname), 5000))
-logging.info('Equilibrating system at 300K for {} ns'.format(time_in_ns))
-simulation.integrator.setTemperature(300*units.kelvin)
-simulation.step(n_of_steps)
-simulation.saveState('{}_NVT.xml'.format(rootname))
 
 logging.info('Done')
 logging.shutdown()
