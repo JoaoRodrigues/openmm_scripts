@@ -42,9 +42,9 @@ sim_opts.add_argument('--seed', type=int, default=917,
 sim_opts.add_argument('--restart', action='store_true',
                       help='Ignores any Checkpoint files in the folder.')
 
-sim_opts.add_argument('--equilibration', type=float, default=5.0,
+sim_opts.add_argument('--equilibration', type=float, default=1.0,
                       help='Time in ns for equilibration [default: 5.0]')
-sim_opts.add_argument('--production', type=float, default=10.0,
+sim_opts.add_argument('--production', type=float, default=5.0,
                       help='Time in ns for production [default: 10.0]')
 
 opt_plat = ap.add_mutually_exclusive_group()
@@ -225,7 +225,6 @@ if not os.path.isfile(cpt_file) or user_args.restart:
     # Equilibration
     time_in_ns = user_args.equilibration
     n_of_steps = time_in_ns / (0.002/1000)
-    reporters.append(app.DCDReporter('{}_nvt.dcd'.format(rootname), 25000))  # 50 ps # noqa: E501
     logging.info('NPT equilibration system at 300K for {} ns'.format(time_in_ns))  # noqa: E501
     simulation.integrator.setTemperature(300*units.kelvin)
     simulation.step(n_of_steps)
@@ -244,7 +243,7 @@ n_of_steps = time_in_ns / (0.002/1000)
 simulation.reporters = []
 reporters = simulation.reporters
 
-reporters.append(app.StateDataReporter(logfile, 100, step=True,
+reporters.append(app.StateDataReporter(logfile, 50000, step=True,
                                        time=True, totalSteps=n_of_steps,
                                        potentialEnergy=True,
                                        kineticEnergy=True,
@@ -254,7 +253,8 @@ reporters.append(app.StateDataReporter(logfile, 100, step=True,
                                        separator='\t'))
 
 
-reporters.append(app.CheckpointReporter(cpt_file, 5000))  # Save every 10 ps
+reporters.append(app.DCDReporter('{}_nvt.dcd'.format(rootname), 50000))  
+reporters.append(app.CheckpointReporter(cpt_file, 50000))  # Save every 100 ps
 logging.info('Running production simulation for {} ns'.format(time_in_ns))
 simulation.step(n_of_steps)
 
