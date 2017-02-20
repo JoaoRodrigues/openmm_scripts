@@ -23,9 +23,10 @@ import numpy as np
 # profiled to run in ~50% of the time of pdist
 # much less memory hungry. No storage of all distances.
 try:
+    sys.path.insert(0, os.curdir)
     from _pwdistance import pw_dist
     opt_pw = True
-except ImportError:
+except ImportError, e:
     opt_pw = False
     from scipy.spatial.distance import pdist
 
