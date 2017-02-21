@@ -14,6 +14,7 @@ import argparse
 import logging
 import os
 import random
+import re
 import sys
 
 import simtk.openmm.app as app
@@ -230,6 +231,12 @@ if not os.path.isfile(cpt_file) or user_args.restart:
     simulation.step(n_of_steps)
     simulation.saveState('{}_NVT.xml'.format(rootname))
 
+    ##
+    # Production
+    dcd_name = '{}_md_0.dcd'.format(rootname)
+    time_in_ns = user_args.production
+
+
 elif os.path.isfile(cpt_file) and not user_args.restart:
     # Load CPT file
     logging.info('Loading last checkpoint file: {}'.format(cpt_file))
@@ -242,12 +249,22 @@ elif os.path.isfile(cpt_file) and not user_args.restart:
 
     # Adjust remaining simulation time
     total_time = user_args.production * units.nanosecond
-    user_args.production = total_time - simulated_time_in_ns
+    remaining_time = total_time - simulated_time_in_ns
+    time_in_ns = remaining_time.value_in_unit(units.nanosecond)
 
+    # Adjust dcd name
+    dcd_regex = re.compile('{}_md'.format(rootname) + "_([0-9])+\.dcd")
+    finder = lambda x: re.match(dcd_regex, x)  # noqa: E731
+    extensions = set(map(finder, os.listdir('.'))) - set([None])
+    if extensions:
+        ext_no = map(int, [dcd.group(1) for dcd in extensions if dcd])
+        last_no = sorted(ext_no)[-1]
+        dcd_name = '{}_md_{}.dcd'.format(rootname, last_no)
+    else:
+        dcd_name = '{}_md_{}.dcd'.format(rootname, 0)
 
 ##
 # Production
-time_in_ns = user_args.production
 n_of_steps = time_in_ns / (0.002/1000)
 simulation.reporters = []
 reporters = simulation.reporters
@@ -262,7 +279,7 @@ reporters.append(app.StateDataReporter(logfile, 50000, step=True,
                                        separator='\t'))
 
 
-reporters.append(app.DCDReporter('{}_nvt.dcd'.format(rootname), 50000))
+reporters.append(app.DCDReporter(dcd_name, 50000))
 reporters.append(app.CheckpointReporter(cpt_file, 50000))  # Save every 100 ps
 logging.info('Running production simulation for {} ns'.format(time_in_ns))
 simulation.step(n_of_steps)
