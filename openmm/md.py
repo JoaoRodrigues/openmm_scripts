@@ -258,33 +258,38 @@ elif os.path.isfile(cpt_file) and not user_args.restart:
     extensions = set(map(finder, os.listdir('.'))) - set([None])
     if extensions:
         ext_no = map(int, [dcd.group(1) for dcd in extensions if dcd])
-        last_no = sorted(ext_no)[-1]
+        last_no = int(sorted(ext_no)[-1]) + 1
         dcd_name = '{}_md_{}.dcd'.format(rootname, last_no)
     else:
         dcd_name = '{}_md_{}.dcd'.format(rootname, 0)
 
 ##
 # Production
-n_of_steps = time_in_ns / (0.002/1000)
+time_in_ns = round(time_in_ns, 5)
+n_of_steps = int(time_in_ns / (0.002/1000))
 simulation.reporters = []
-reporters = simulation.reporters
 
-reporters.append(app.StateDataReporter(logfile, 50000, step=True,
-                                       time=True, totalSteps=n_of_steps,
-                                       potentialEnergy=True,
-                                       kineticEnergy=True,
-                                       totalEnergy=True, temperature=True,
-                                       speed=True, progress=True,
-                                       remainingTime=True, volume=True,
-                                       separator='\t'))
+if n_of_steps:
+    reporters = simulation.reporters
+
+    reporters.append(app.StateDataReporter(logfile, 10000, step=True,
+                                           time=True, totalSteps=n_of_steps,
+                                           potentialEnergy=True,
+                                           kineticEnergy=True,
+                                           totalEnergy=True, temperature=True,
+                                           speed=True, progress=True,
+                                           remainingTime=True, volume=True,
+                                           separator='\t'))
 
 
-reporters.append(app.DCDReporter(dcd_name, 50000))
-reporters.append(app.CheckpointReporter(cpt_file, 50000))  # Save every 100 ps
-logging.info('Running production simulation for {} ns'.format(time_in_ns))
-simulation.step(n_of_steps)
+    reporters.append(app.DCDReporter(dcd_name, 10000))
+    reporters.append(app.CheckpointReporter(cpt_file, 10000))  # Save every 20 ps
+    logging.info('Running production simulation for {} ns'.format(time_in_ns))
+    simulation.step(n_of_steps)
 
 logging.info('Simulation Finished')
+logging.info('Saving xml state to file: {}_prod.xml'.format(rootname))
 simulation.saveState('{}_prod.xml'.format(rootname))
 
+logging.info('Bye bye..')
 logging.shutdown()
