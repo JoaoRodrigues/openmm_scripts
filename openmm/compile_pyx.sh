@@ -14,5 +14,7 @@ if [ ! -f ${pyxFile%%.pyx}.c ]
 then
   cython -a $pyxFile
 fi
-gcc -shared -pthread -fPIC -fwrapv -O2 -Wall -fno-strict-aliasing -I/home/stanford/levittm/shared/software/miniconda2/include/python2.7 -o ${pyxFile%%.pyx}.so ${pyxFile%%.pyx}.c
+
+PYTHON_INCLUDE=$( python -c "from distutils import sysconfig; print sysconfig.get_python_inc()")
+gcc -shared -pthread -fPIC -fwrapv -O2 -Wall -fno-strict-aliasing -I${PYTHON_INCLUDE} -o ${pyxFile%%.pyx}.so ${pyxFile%%.pyx}.c
 
