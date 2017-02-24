@@ -23,7 +23,10 @@ import numpy as np
 # profiled to run in ~50% of the time of pdist
 # much less memory hungry. No storage of all distances.
 try:
+    # add to PYTHONPATH current workdir and script dir
     sys.path.insert(0, os.curdir)
+    sys.path.insert(0, os.path.dirname(__file__))
+
     from _pwdistance import pw_dist
     opt_pw = True
 except ImportError, e:
