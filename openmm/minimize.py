@@ -45,6 +45,7 @@ ap.add_argument('--log', type=str, help='Log file name')
 ap.add_argument('--pad', type=float, default=1.0, help='Box Padding in nm')
 ap.add_argument('--seed', type=int, default=917, help='Random Number Seed')
 ap.add_argument('--vacuum', action="store_true", help='Does EM in vacuum')
+ap.add_argument('--noadd', action="store_true", help='Skips missing atoms check')
 
 opt_plat = ap.add_mutually_exclusive_group()
 opt_plat.add_argument('--cpu', action="store_true", help='Use CPU platform')
@@ -103,12 +104,13 @@ pdb = app.PDBFile(user_args.pdb)
 forcefield = app.ForceField('amber99sbildn.xml', 'tip3p.xml')
 
 # Processing structure and build box
-logging.info('Adding missing atoms')
 modeller = app.Modeller(pdb.topology, pdb.positions)
-modeller.addHydrogens(forcefield, pH=7.0, platform=platform)  # already does EM
+if not user_args.noadd:
+    logging.info('Adding missing atoms')
+    modeller.addHydrogens(forcefield, pH=7.0, platform=platform)  # already does EM
 
 # Build rhombic dodecahedron box (square xy-plane)
-# 0. Center system at origin and orient along principal axis (Z=longest)
+# 0. Center system at origin
 logging.info('Moving system to origin')
 com_xyz = modeller.positions.mean()
 for i, xyz_i in enumerate(modeller.positions):
