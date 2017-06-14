@@ -71,6 +71,10 @@ logging.basicConfig(stream=logfile,
 
 logging.info('Starting Simulation')
 
+# Print some info on system/versions
+openmm_version = mm.Platform_getOpenMMVersion()
+logging.info('OpenMM Version {}'.format(openmm_version))
+
 # Define platform: CPU/CUDA
 gpu_res = os.getenv('CUDA_VISIBLE_DEVICES')
 cpu_res = os.getenv('SLURM_CPUS_PER_TASK')
@@ -224,12 +228,17 @@ if not os.path.isfile(cpt_file) or user_args.restart:
 
     ##
     # Equilibration
-    time_in_ns = user_args.equilibration
-    n_of_steps = time_in_ns / (0.002/1000)
-    logging.info('NPT equilibration system at 300K for {} ns'.format(time_in_ns))  # noqa: E501
-    simulation.integrator.setTemperature(300*units.kelvin)
-    simulation.step(n_of_steps)
-    simulation.saveState('{}_NVT.xml'.format(rootname))
+    nvt_state = '{}_NVT.xml'.format(rootname)
+    if os.path.isfile(nvt_state):
+        logging.info('Found saved NVT equilibrated state: {}'.format(nvt_state))  # noqa: E501
+        simulation.loadState(nvt_state)
+    else:
+        time_in_ns = user_args.equilibration
+        n_of_steps = time_in_ns / (0.002/1000)
+        logging.info('NPT equilibration system at 300K for {} ns'.format(time_in_ns))  # noqa: E501
+        simulation.integrator.setTemperature(md_temp)
+        simulation.step(n_of_steps)
+        simulation.saveState('{}_NVT.xml'.format(rootname))
 
     ##
     # Production
@@ -272,7 +281,7 @@ simulation.reporters = []
 if n_of_steps:
     reporters = simulation.reporters
 
-    reporters.append(app.StateDataReporter(logfile, 10000, step=True,
+    reporters.append(app.StateDataReporter(logfile, 5000, step=True,
                                            time=True, totalSteps=n_of_steps,
                                            potentialEnergy=True,
                                            kineticEnergy=True,
@@ -282,9 +291,10 @@ if n_of_steps:
                                            separator='\t'))
 
 
-    reporters.append(app.DCDReporter(dcd_name, 10000))
-    reporters.append(app.CheckpointReporter(cpt_file, 10000))  # Save every 20 ps
+    reporters.append(app.DCDReporter(dcd_name, 5000)) # 1o ps
+    reporters.append(app.CheckpointReporter(cpt_file, 5000))  # Save every 10 ps
     logging.info('Running production simulation for {} ns'.format(time_in_ns))
+    simulation.integrator.setTemperature(md_temp)
     simulation.step(n_of_steps)
 
 logging.info('Simulation Finished')
