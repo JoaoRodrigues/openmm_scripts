@@ -104,7 +104,7 @@ modeller.addHydrogens(forcefield=forcefield, pH=7.0)
 
 # Write complete structure
 if cmd.output:
-    if not fname.endswith('.cif'):
+    if not cmd.output.endswith('.cif'):
         _fname = cmd.output + '.cif'
 else:
     _fname = fname + '_H' + '.xml'
