@@ -71,7 +71,7 @@ ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('structure', help='Input coordinate file (.cif)')
 # Options
 ap.add_argument('--output', type=str, default=None,
-                help='Root name for output files.')
+                help='File name for PBC system in mmCIF format.')
 ap.add_argument('--boxtype', choices=['cubic', 'dodecahedron'], type=str,
                 default='dodecahedron',
                 help='Geometry of the periodic box to build.')
@@ -148,7 +148,15 @@ logging.info('    v = {:6.3f} {:6.3f} {:6.3f}'.format(*v))
 logging.info('    w = {:6.3f} {:6.3f} {:6.3f}'.format(*w))
 
 # Write structure with PBC
-cif_fname = get_filename(fname + '_PBC.cif')
+if cmd.output:
+    if not cmd.output.endswith('.cif'):
+        _fname = cmd.output + '.cif'
+    else:
+        _fname = cmd.output
+else:
+    _fname = fname + '_PBC' + '.cif'
+
+cif_fname = get_filename(_fname)
 logging.info('Writing structure to \'{}\''.format(cif_fname))
 with open(cif_fname, 'w') as handle:
     app.PDBxFile.writeFile(modeller.topology, modeller.positions, handle)
