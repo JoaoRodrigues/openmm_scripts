@@ -53,7 +53,7 @@ ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('structure', help='Input coordinate file (.cif or .pdb)')
 # Options
 ap.add_argument('--output', type=str, default=None,
-                help='Root name for output files.')
+                help='File name for completed system in mmCIF format.')
 ap.add_argument('--forcefield', type=str, default='amber99sbildn.xml',
                 help='Force field to build the system with.')
 ap.add_argument('--platform', type=str, default=None,
@@ -103,7 +103,13 @@ modeller.delete(hydrogens)
 modeller.addHydrogens(forcefield=forcefield, pH=7.0)
 
 # Write complete structure
-cif_fname = get_filename(fname + '_H.cif')
+if cmd.output:
+    if not fname.endswith('.cif'):
+        _fname = cmd.output + '.cif'
+else:
+    _fname = fname + '_H' + '.xml'
+
+cif_fname = get_filename(_fname)
 logging.info('Writing structure to \'{}\''.format(cif_fname))
 with open(cif_fname, 'w') as handle:
     app.PDBxFile.writeFile(modeller.topology, modeller.positions, handle)
