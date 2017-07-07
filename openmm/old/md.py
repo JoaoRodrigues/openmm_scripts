@@ -384,7 +384,7 @@ if user_args.continuation:
 
         # Adjust remaining time
         remainder = (total_time - elapsed_sim_time).in_units_of(units.nanoseconds)
-        if remainder.value_in_unit(units.nanosecond) < 0:
+        if remainder.value_in_unit(units.nanosecond) <= 0.0001:  # not quite zero but small enough: floats
             logging.info('Production run finished. Maybe increase requested time?')
             sys.exit(1)
 
@@ -399,8 +399,8 @@ if len(existing_dcd) == 1:  # add part0 suffix
 
 elif len(existing_dcd) > 1:  # check last suffix
     partno_regex = re.compile('_part([0-9]+)\.dcd')
-    finder = lambda x: re.match(partno_regex, x).group(1)
-    lstno = sorted(map(finder, existing_dcd))[0]
+    finder = lambda x: partno_regex.search(x).group(1)
+    lstno = int(sorted(map(finder, existing_dcd))[-1])
     production_dcd = '{}_part{}.dcd'.format(dcd_rootname, lstno + 1)
 
 # Actually run the simulation
@@ -424,8 +424,8 @@ dcd_file = app.DCDFile(_dcd_handle, pdb.topology, integrator.getStepSize(), 0, d
 logging.info('Progress\tTime (ps)\tTotal Energy (kJ/mol)\tTemperature (K)\tSpeed (ns/day)')
 while current_step < total_steps:
 
-    steps_left = total_steps - current_step
-    if steps_left < 0.0000001:
+    steps_left = int(total_steps - current_step)  # force to be int
+    if steps_left < 0.01:
         break
     elif steps_left < _steps:
         _steps = steps_left
