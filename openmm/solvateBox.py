@@ -52,7 +52,7 @@ ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('structure', help='Input coordinate file (.cif or .pdb)')
 # Options
 ap.add_argument('--output', type=str, default=None,
-                help='Root name for output files.')
+                help='File name for solvated system. Will *always* use mmCIF format.')
 ap.add_argument('--forcefield', type=str, default='amber99sbildn.xml',
                 help='Force field to build the system with.')
 ap.add_argument('--solvent', type=str, default='tip3p.xml',
@@ -116,7 +116,15 @@ logging.info('  num. waters   = {:6d}'.format(n_waters))
 logging.info('  num. ions     = {:6d} Na {:6d} Cl'.format(n_cation, n_anion))
 
 # Write complete structure
-cif_fname = get_filename(fname + '_solvated.cif')
+if cmd.output:
+    if not cmd.output.endswith('.cif'):
+        _fname = cmd.output + '.cif'
+    else:
+        _fname = cmd.output
+else:
+    _fname = fname + '_solvated' + '.cif'
+
+cif_fname = get_filename(_fname)
 logging.info('Writing structure to \'{}\''.format(cif_fname))
 with open(cif_fname, 'w') as handle:
     app.PDBxFile.writeFile(modeller.topology, modeller.positions, handle)

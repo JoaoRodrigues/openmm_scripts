@@ -272,8 +272,7 @@ simulation.step(n_steps)
 
 # Write equilibrated state
 if cmd.output:
-    if not fname.endswith('.xml'):
-        _fname = cmd.output + '.xml'
+    _fname = cmd.output + '.xml'
 else:
     _fname = fname + '_Eq' + '.xml'
 
@@ -283,8 +282,7 @@ simulation.saveState(xml_fname)
 
 # Write last frame as mmCIF
 if cmd.output:
-    if not fname.endswith('.cif'):
-        _fname = cmd.output + '.cif'
+    _fname = cmd.output + '.cif'
 else:
     _fname = fname + '_Eq' + '.cif'
 

@@ -53,7 +53,7 @@ ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('structure', help='Input coordinate file (.cif)')
 # Options
 ap.add_argument('--output', type=str, default=None,
-                help='File name for completed structure. Will *always* use mmCIF format.')
+                help='File name for minimized structure. Will *always* use mmCIF format.')
 ap.add_argument('--forcefield', type=str, default='amber99sbildn.xml',
                 help='Force field to build the system with.')
 ap.add_argument('--solvent', type=str, default='tip3p.xml',
@@ -157,14 +157,15 @@ logging.info('Final Potential Energy: {:10.3f}'.format(energy))
 
 # Write minimized structure
 if cmd.output:
-    if not fname.endswith('.cif'):
-        fname = cmd.output + '.cif'
+    if not cmd.output.endswith('.cif'):
+        _fname = cmd.output + '.cif'
+    else:
+        _fname = cmd.output
 else:
-    fname = fname + '_EM' + '.cif'
+    _fname = fname + '_EM' + '.cif'
 
-fname = get_filename(fname)
-
-logging.info('Writing structure to \'{}\''.format(fname))
-with open(fname, 'w') as handle:
+cif_fname = get_filename(_fname)
+logging.info('Writing structure to \'{}\''.format(cif_fname))
+with open(cif_fname, 'w') as handle:
     minimized_positions = state.getPositions()
     app.PDBxFile.writeFile(structure.topology, minimized_positions, handle)
