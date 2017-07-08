@@ -83,8 +83,25 @@ logging.info('  solvent model: {}'.format(cmd.solvent))
 if cmd.neutralize:
     logging.info('  neutralizing system with {}M of counter-ions.'.format(cmd.ionic_strength))
 logging.info('  random seed: {}'.format(cmd.seed))
+
+# Set platform-specific properties
+properties = {}
 if cmd.platform:
-    logging.info('  platform: {}'.format(cmd.platform.getName()))
+    platform_name = cmd.platform.getName()
+    logging.info('  platform: {}'.format(platform_name))
+
+    if platform_name == 'CUDA':
+        properties = {'CudaPrecision': 'mixed'}
+
+        # Slurm sets this sometimes
+        gpu_ids = os.getenv('CUDA_VISIBLE_DEVICES')
+        if gpu_ids:
+            properties['DeviceIndex'] = gpu_ids
+
+    elif platform_name == 'CPU':
+        cpu_threads = os.getenv('SLURM_CPUS_PER_TASK')
+        if cpu_threads:
+            properties['Threads'] = cpu_threads
 
 # Figure out input file format from extension
 fname, fext = os.path.splitext(cmd.structure)
