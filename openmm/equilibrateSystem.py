@@ -186,7 +186,7 @@ if cmd.posre:
     logging.info('Adding harmonic position restraints on subset: {}'.format(cmd.posre))
     logging.info('  K = {:8.2f}'.format(cmd.posre_K))
     # Harmonic restraint
-    posre = mm.CustomExternalForce("0.5*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
+    posre = mm.CustomExternalForce("0.5*k*periodicdistance(x, y, z, x0, y0, z0)^2")
     posre.addGlobalParameter("k", cmd.posre_K * (units.kilojoule_per_mole/units.nanometer**2))
     posre.addPerParticleParameter("x0")
     posre.addPerParticleParameter("y0")
