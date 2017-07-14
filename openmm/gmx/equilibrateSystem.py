@@ -91,6 +91,11 @@ ap.add_argument('--seed', type=int, default=917,
 ap.add_argument('--continuation', action='store_true',
                 help='Look for existing checkpoint files to continue a previous run.')
 
+ap.add_argument('--write-frequency', dest='wfreq', default=5000, type=int,
+                help='Frequency (number of steps) to write DCD and checkpoint file(s).')
+ap.add_argument('--log-frequency', dest='pfreq', default=5000, type=int,
+                help='Frequency (number of steps) to write simulation details (log file).')
+
 ap.add_argument('--posre', choices=['heavy-atoms'], type=str,
                 help='Add position restraints to a specific group of atoms. Solvent is *never* restrained.')
 ap.add_argument('--posre_K', default=1000.0, type=float,
@@ -204,7 +209,7 @@ if cmd.posre:
         # Lets assume simple things
         solvent = set(('HOH', 'NA', 'CL'))
         _elem_H = app.element.hydrogen
-        all_atoms = list(structure.topology.atoms())
+        all_atoms = list(topology.topology.atoms())
 
         n_posre_at = 0
         for i, atom_crd in enumerate(structure.positions):
@@ -255,8 +260,8 @@ n_steps = int(n_steps.value_in_unit(units.nanoseconds)) + 1  # rounding errors
 # Save DCD/CPT/etc every 0.01 ns
 # Time step is 2 fs
 # 500.000 steps give 1 ns
-wfreq = 5000
-pfreq = 5000
+wfreq = cmd.wfreq
+pfreq = cmd.pfreq
 
 eq_dcd = fname + '_Eq' + '.dcd'
 eq_dcd = get_part_filename(eq_dcd)
@@ -305,4 +310,4 @@ cif_fname = get_filename(_fname)
 logging.info('Writing equilibrated structure file to \'{}\''.format(cif_fname))
 with open(_fname, 'w') as handle:
     eq_xyz = simulation.context.getState(getPositions=True).getPositions()
-    app.PDBxFile.writeFile(structure.topology, eq_xyz, handle)
+    app.PDBxFile.writeFile(topology.topology, eq_xyz, handle)
