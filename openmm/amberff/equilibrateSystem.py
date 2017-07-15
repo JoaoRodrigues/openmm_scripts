@@ -88,6 +88,11 @@ ap.add_argument('--forcefield', type=str, default='amber99sbildn.xml',
 ap.add_argument('--solvent', type=str, default='tip3p.xml',
                 help='Solvent model to use in minimization.')
 
+ap.add_argument('--write-frequency', dest='wfreq', type=int, default=None,
+                help='Frequency (number of steps) to write DCD and checkpoint file(s).')
+ap.add_argument('--log-frequency', dest='pfreq', type=int, default=None,
+                help='Frequency (number of steps) to write simulation details (log file).')
+
 ap.add_argument('--platform', type=str, default=None,
                 help='Platform to run calculations on. Defaults to fastest available.')
 ap.add_argument('--seed', type=int, default=917,
@@ -103,6 +108,8 @@ ap.add_argument('--runtime', type=float, default=10.0,
                 help='Time (in ns) to equilibrate system for.')
 ap.add_argument('--temperature', default=300, type=float,
                 help='Temperature at which to simulate the system, in Kelvin. Default is 300.')
+
+ap.add_argument('--isobaric', action='store_true', help='Adds pressure coupling to the system (NpT ensemble)')
 ap.add_argument('--pressure', default=1.0, type=float,
                 help='Pressure at which to simulate the system, in bar. Default is 1.')
 ap.add_argument('--hmr', action='store_true',
@@ -177,6 +184,12 @@ system = forcefield.createSystem(structure.topology, nonbondedMethod=app.PME,
                                  ewaldErrorTolerance=0.0005,
                                  rigidWater=True)
 
+if cmd.isobaric:
+    logging.info('  NpT ensemble')
+    system.addForce(mm.MonteCarloBarostat(md_pres, md_temp, 25))
+else:
+    logging.info('  NVT ensemble')
+
 integrator = mm.LangevinIntegrator(md_temp, md_fric, md_step)
 integrator.setRandomNumberSeed(cmd.seed)
 integrator.setConstraintTolerance(0.00001)
@@ -249,13 +262,13 @@ n_steps = int(n_steps.value_in_unit(units.nanoseconds)) + 1  # rounding errors
 if cmd.hmr:
     # Time step is 5 fs
     # 200.000 steps give 1 ns
-    wfreq = 2000
-    pfreq = 2000
+    wfreq = cmd.wfreq if cmd.wfreq is not None else 2000
+    pfreq = cmd.pfreq if cmd.pfreq is not None else 2000
 else:
     # Time step is 2 fs
     # 500.000 steps give 1 ns
-    wfreq = 5000
-    pfreq = 5000
+    wfreq = cmd.wfreq if cmd.wfreq is not None else 5000
+    pfreq = cmd.pfreq if cmd.pfreq is not None else 5000
 
 eq_dcd = fname + '_Eq' + '.dcd'
 eq_dcd = get_part_filename(eq_dcd)
