@@ -11,5 +11,11 @@
 
 tmpdir=`mktemp -d -t pdbcat`
 pymol -c -Q -d "load $1; as cartoon; spectrum; show sticks, hetatm; show nonbonded; bg_color white; orient; set ray_opaque_background, 0; png $tmpdir/pdbimg.png, width=800, height=600, ray=1"
-imgcat $tmpdir/pdbimg.png
+
+# Trim the empty margins if ImageMagick is installed
+convert $tmpdir/pdbimg.png -trim +repage $tmpdir/pdbimg_trimmed.png || cp $tmpdir/pdbimg.png $tmpdir/pdbimg_trimmed.png
+
+# Print image to terminal
+imgcat $tmpdir/pdbimg_trimmed.png || echo "The program 'imgcat' is required for this to work"
 rm -rf $tmpdir
+
