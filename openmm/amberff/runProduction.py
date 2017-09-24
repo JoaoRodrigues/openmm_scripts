@@ -216,6 +216,9 @@ if cmd.continuation and os.path.isfile(run_cpt):
     prod_time = (expected_t - run_time).in_units_of(units.nanosecond)
 else:
     simulation.loadState(cmd.state)
+    # reset time in context to avoid running from completed Eq
+    logging.info('Resetting context time')
+    simulation.context.setTime(0.0)
     prod_time = cmd.runtime * units.nanosecond
 
 prod_time_val = prod_time.value_in_unit(units.nanosecond)
