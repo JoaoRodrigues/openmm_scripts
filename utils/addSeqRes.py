@@ -67,3 +67,6 @@ else:
 with open(fname, 'w') as handle:
     handle.write(seqres)
     handle.write(''.join(lines))
+
+print('Added SEQRES to {}'.format(cmd.structure))
+print('File written to: {}'.format(fname))

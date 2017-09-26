@@ -15,16 +15,19 @@ ap.add_argument('structure')
 ap.add_argument('--output', default=None, help='Output name for fixed structure')
 cmd = ap.parse_args()
 
+print('Reading PDB structure: {}'.format(cmd.structure))
 fixer = PDBFixer(cmd.structure)
+
+print('Finding and adding missing heavy atoms')
 fixer.findMissingResidues()
 fixer.findMissingAtoms()
 fixer.addMissingAtoms()
-#fixer.addMissingHydrogens(7.0)
 
 if cmd.output is None:
-    ofname = cmd.structure[:-4]
+    ofname = cmd.structure[:-4] + '.cif'
 else:
     ofname = cmd.output
 
-with open('{}.cif'.format(ofname), 'w') as handle:
+print('Writing completed structure in CIF format: {}'.format(ofname))
+with open('{}'.format(ofname), 'w') as handle:
     PDBxFile.writeFile(fixer.topology, fixer.positions, handle)
