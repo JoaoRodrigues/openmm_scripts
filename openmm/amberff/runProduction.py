@@ -154,6 +154,11 @@ if cmd.platform:
 # Split input file name
 fname, fext = os.path.splitext(cmd.structure)
 
+if cmd.output:
+    rootname = cmd.output
+else:
+    rootname = fname + '_Prod'
+
 # Read structure
 structure = app.PDBxFile(cmd.structure)
 forcefield = app.ForceField(cmd.forcefield, cmd.solvent)
@@ -199,7 +204,7 @@ simulation.context.setPositions(structure.positions)
 simulation.context.setVelocitiesToTemperature(md_temp)
 
 # Is there a checkpoint file for this simulation?
-run_cpt = '{}_Prod.cpt'.format(fname)
+run_cpt = rootname + '.cpt'
 if cmd.continuation and os.path.isfile(run_cpt):
     logging.info('Found existing checkpoint file: \'{}\''.format(run_cpt))
 
@@ -244,10 +249,10 @@ else:
     wfreq = cmd.wfreq if cmd.wfreq is not None else 5000
     pfreq = cmd.pfreq if cmd.pfreq is not None else 5000
 
-run_dcd = fname + '_Prod' + '.dcd'
+run_dcd = rootname + '.dcd'
 run_dcd = get_part_filename(run_dcd)
 
-run_log = fname + '_Prod' + '.log'
+run_log = rootname + '.log'
 run_log = get_part_filename(run_log)
 
 dcd = app.DCDReporter(run_dcd, wfreq)
@@ -272,22 +277,12 @@ simulation.reporters.append(state)
 simulation.step(n_steps)
 
 # Write state
-if cmd.output:
-    _fname = cmd.output + '.xml'
-else:
-    _fname = fname + '_Prod' + '.xml'
-
-xml_fname = get_filename(_fname)
+xml_fname = get_filename(rootname + '.xml')
 logging.info('Writing state file to \'{}\''.format(xml_fname))
 simulation.saveState(xml_fname)
 
 # Write last frame as mmCIF
-if cmd.output:
-    _fname = cmd.output + '.cif'
-else:
-    _fname = fname + '_Prod' + '.cif'
-
-cif_fname = get_filename(_fname)
+cif_fname = get_filename(rootname + '.cif')
 logging.info('Writing last frame to \'{}\''.format(cif_fname))
 with open(_fname, 'w') as handle:
     eq_xyz = simulation.context.getState(getPositions=True).getPositions()

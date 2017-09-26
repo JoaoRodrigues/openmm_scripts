@@ -156,6 +156,11 @@ if cmd.platform:
 # Split input file name
 fname, fext = os.path.splitext(cmd.structure)
 
+if cmd.output:
+    rootname = cmd.output
+else:
+    rootname = fname + '_Eq'
+
 # Read structure
 structure = app.PDBxFile(cmd.structure)
 forcefield = app.ForceField(cmd.forcefield, cmd.solvent)
@@ -229,7 +234,7 @@ simulation.context.setPositions(structure.positions)
 simulation.context.setVelocitiesToTemperature(md_temp)
 
 # Is there a checkpoint file for this equilibration?
-eq_cpt = '{}_Eq.cpt'.format(fname)
+eq_cpt = rootname + '.cpt'
 if cmd.continuation and os.path.isfile(eq_cpt):
     logging.info('Found existing checkpoint file: \'{}\''.format(eq_cpt))
 
@@ -270,10 +275,10 @@ else:
     wfreq = cmd.wfreq if cmd.wfreq is not None else 5000
     pfreq = cmd.pfreq if cmd.pfreq is not None else 5000
 
-eq_dcd = fname + '_Eq' + '.dcd'
+eq_dcd = rootname + '.dcd'
 eq_dcd = get_part_filename(eq_dcd)
 
-eq_log = fname + '_Eq' + '.log'
+eq_log = rootname + '.log'
 eq_log = get_part_filename(eq_log)
 
 dcd = app.DCDReporter(eq_dcd, wfreq)
@@ -298,22 +303,12 @@ simulation.reporters.append(state)
 simulation.step(n_steps)
 
 # Write equilibrated state
-if cmd.output:
-    _fname = cmd.output + '.xml'
-else:
-    _fname = fname + '_Eq' + '.xml'
-
-xml_fname = get_filename(_fname)
+xml_fname = get_filename(rootname + '.xml')
 logging.info('Writing state file to \'{}\''.format(xml_fname))
 simulation.saveState(xml_fname)
 
 # Write last frame as mmCIF
-if cmd.output:
-    _fname = cmd.output + '.cif'
-else:
-    _fname = fname + '_Eq' + '.cif'
-
-cif_fname = get_filename(_fname)
+cif_fname = get_filename(rootname + '.cif')
 logging.info('Writing equilibrated structure file to \'{}\''.format(cif_fname))
 with open(_fname, 'w') as handle:
     eq_xyz = simulation.context.getState(getPositions=True).getPositions()
