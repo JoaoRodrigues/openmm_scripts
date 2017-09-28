@@ -81,6 +81,8 @@ ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('structure', help='Input coordinate file (.cif)')
 
 # Options
+ap.add_argument('--state', help='XML state file for continuing (.xml)')
+
 ap.add_argument('--output', type=str, default=None,
                 help='Root name for output files.')
 ap.add_argument('--forcefield', type=str, default='amber99sbildn.xml',
@@ -250,6 +252,12 @@ if cmd.continuation and os.path.isfile(eq_cpt):
     expected_t = cmd.runtime * units.nanosecond
     eq_time = (expected_t - run_time).in_units_of(units.nanosecond)
 else:
+    if cmd.state:
+        simulation.loadState(cmd.state)
+        # reset time in context to avoid running from completed previous step
+        logging.info('Resetting context time')
+        simulation.context.setTime(0.0)
+
     eq_time = cmd.runtime * units.nanosecond
 
 eq_time_val = eq_time.value_in_unit(units.nanosecond)
@@ -276,10 +284,12 @@ else:
     pfreq = cmd.pfreq if cmd.pfreq is not None else 5000
 
 eq_dcd = rootname + '.dcd'
-eq_dcd = get_part_filename(eq_dcd)
+if cmd.continuation:
+    eq_dcd = get_part_filename(eq_dcd)
 
 eq_log = rootname + '.log'
-eq_log = get_part_filename(eq_log)
+if cmd.continuation:
+    eq_log = get_part_filename(eq_log)
 
 dcd = app.DCDReporter(eq_dcd, wfreq)
 cpt = app.CheckpointReporter(eq_cpt, wfreq)
@@ -310,6 +320,6 @@ simulation.saveState(xml_fname)
 # Write last frame as mmCIF
 cif_fname = get_filename(rootname + '.cif')
 logging.info('Writing equilibrated structure file to \'{}\''.format(cif_fname))
-with open(_fname, 'w') as handle:
+with open(cif_fname, 'w') as handle:
     eq_xyz = simulation.context.getState(getPositions=True).getPositions()
     app.PDBxFile.writeFile(structure.topology, eq_xyz, handle)
