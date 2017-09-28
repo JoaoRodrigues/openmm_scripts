@@ -284,6 +284,6 @@ simulation.saveState(xml_fname)
 # Write last frame as mmCIF
 cif_fname = get_filename(rootname + '.cif')
 logging.info('Writing last frame to \'{}\''.format(cif_fname))
-with open(_fname, 'w') as handle:
+with open(cif_fname, 'w') as handle:
     eq_xyz = simulation.context.getState(getPositions=True).getPositions()
     app.PDBxFile.writeFile(structure.topology, eq_xyz, handle)
