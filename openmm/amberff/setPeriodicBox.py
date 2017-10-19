@@ -38,7 +38,7 @@ try:
     sys.path.insert(0, os.path.dirname(__file__))
 
     from _pwdistance import pw_dist
-except ImportError, e:
+except ImportError as e:
     logging.warning('Using numpy (slower) pwdist routine for simulation setup.')
     from scipy.spatial.distance import pdist
 
