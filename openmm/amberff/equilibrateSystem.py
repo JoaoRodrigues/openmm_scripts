@@ -257,6 +257,7 @@ else:
         # reset time in context to avoid running from completed previous step
         logging.info('Resetting context time')
         simulation.context.setTime(0.0)
+        simulation.context.setParameter("k", cmd.posre_K)
 
     eq_time = cmd.runtime * units.nanosecond
 

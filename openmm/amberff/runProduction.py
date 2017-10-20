@@ -112,6 +112,11 @@ ap.add_argument('--pressure', default=1.0, type=float,
 ap.add_argument('--hmr', action='store_true',
                 help='Use Hydrogen Mass Repartitioning.')
 
+ap.add_argument('--posre', choices=['heavy-atoms'], type=str,
+                help='Add position restraints to a specific group of atoms. Solvent is *never* restrained.')
+ap.add_argument('--posre_K', default=1000.0, type=float,
+                help='Force constant for position restraints in kJ.mol/nm^2. Default is 1000.')
+
 cmd = ap.parse_args()
 
 # Set random seed for reproducibility
@@ -197,6 +202,34 @@ integrator = mm.LangevinIntegrator(md_temp, md_fric, md_step)
 integrator.setRandomNumberSeed(cmd.seed)
 integrator.setConstraintTolerance(0.00001)
 
+# Add position restraints if requested
+if cmd.posre:
+    logging.info('Adding harmonic position restraints on subset: {}'.format(cmd.posre))
+    logging.info('  K = {:8.2f}'.format(cmd.posre_K))
+    # Harmonic restraint
+    posre = mm.CustomExternalForce("0.5*k*periodicdistance(x, y, z, x0, y0, z0)^2")
+    posre.addGlobalParameter("k", cmd.posre_K * (units.kilojoule_per_mole/units.nanometer**2))
+    posre.addPerParticleParameter("x0")
+    posre.addPerParticleParameter("y0")
+    posre.addPerParticleParameter("z0")
+
+    # Define subset of atoms to restraint
+    if cmd.posre == 'heavy-atoms':
+        # Lets assume simple things
+        solvent = set(('HOH', 'NA', 'CL'))
+        _elem_H = app.element.hydrogen
+        all_atoms = list(structure.topology.atoms())
+
+        n_posre_at = 0
+        for i, atom_crd in enumerate(structure.positions):
+            at = all_atoms[i]
+            if at.residue.name not in solvent and at.element != _elem_H:
+                n_posre_at += 1
+                posre.addParticle(i, atom_crd.value_in_unit(units.nanometers))
+
+        system.addForce(posre)
+        logging.info('Restrained {} out of {} atoms'.format(n_posre_at, i))
+
 # Setup simulation
 simulation = app.Simulation(structure.topology, system, integrator,
                             cmd.platform, properties)
@@ -224,6 +257,7 @@ else:
     # reset time in context to avoid running from completed Eq
     logging.info('Resetting context time')
     simulation.context.setTime(0.0)
+    simulation.context.setParameter("k", cmd.posre_K)
     prod_time = cmd.runtime * units.nanosecond
 
 prod_time_val = prod_time.value_in_unit(units.nanosecond)
