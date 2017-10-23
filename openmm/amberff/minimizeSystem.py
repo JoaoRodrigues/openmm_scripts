@@ -94,10 +94,13 @@ if cmd.platform:
     if platform_name == 'CUDA':
         properties = {'CudaPrecision': 'mixed'}
 
-        # Slurm sets this sometimes
-        gpu_ids = os.getenv('CUDA_VISIBLE_DEVICES')
+        gpu_ids = os.getenv('CUDA_VISIBLE_DEVICES').split(',')
+        n_gpu = len(gpu_ids)
+        logging.info('  no. of GPUs: {}'.format(n_gpu))
+
         if gpu_ids:
-            properties['DeviceIndex'] = gpu_ids
+            gpu_ids = [str(i) for i, _ in enumerate(gpu_ids)]
+            properties['DeviceIndex'] = ','.join(gpu_ids)
 
     elif platform_name == 'CPU':
         cpu_threads = os.getenv('SLURM_CPUS_PER_TASK')
