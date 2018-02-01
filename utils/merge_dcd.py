@@ -49,14 +49,14 @@ if __name__ == '__main__':
 
     # Read/Parse Topology
     topology_fpath = check_file(cmd.topology)
+    logging.info('Reading topology from file: {}'.format(topology_fpath))
+
     if topology_fpath.endswith('cif'):
         structure = app.PDBxFile(topology_fpath)
-        topology = md.Topology.from_openmm(structure)
+        topology = md.Topology.from_openmm(structure.topology)
     else:
         structure = md.load(cmd.topology)
         topology = structure.topology
-
-    logging.info('Read topology from file: {}'.format(topology_fpath))
 
     if cmd.keep_all:
         atomsel = topology.select('all')
@@ -72,18 +72,31 @@ if __name__ == '__main__':
     logging.info('Attemping to merge {} trajectories'.format(n_chunks))
     for idx, trj_fpath in enumerate(cmd.trajectories, start=1):
         logging.info('Reading trajectory {}/{}'.format(idx, n_chunks))
+        print(trj_fpath)
         if merged_trj is None:
             merged_trj = md.load(trj_fpath, top=topology,
                                  stride=cmd.stride, atom_indices=atomsel)
         else:
             trj = md.load(trj_fpath, top=topology,
                           stride=cmd.stride, atom_indices=atomsel)
-            merged_trj.join(trj)
-        n_frames = len(merged_trj)
+            merged_trj = merged_trj + trj
+
+        n_frames = merged_trj.n_frames
         logging.info('Merged frames: {}'.format(n_frames))
+
+    # Center coordinates
+    merged_trj.center_coordinates()
 
     # Write merged trajectory
     logging.info('Writing merged trajectory to \'{}\''.format(cmd.output))
     merged_trj.save_dcd(cmd.output, force_overwrite=True)
+
+    # Write new topology (subset of atoms)
+    root_fname, _ = os.path.splitext(cmd.output)
+    logging.info('Writing first frame to \'{}.cif\''.format(root_fname))
+
+    top_subset = topology.subset(atomsel)
+    with open('{}.cif'.format(root_fname), 'w') as handle:
+        app.PDBxFile.writeFile(top_subset.to_openmm(), merged_trj.openmm_positions(0), handle)
 
     logging.info('Done')
