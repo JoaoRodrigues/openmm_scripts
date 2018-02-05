@@ -97,6 +97,6 @@ if __name__ == '__main__':
 
     top_subset = topology.subset(atomsel)
     with open('{}.cif'.format(root_fname), 'w') as handle:
-        app.PDBxFile.writeFile(top_subset.to_openmm(), merged_trj.openmm_positions(0), handle)
+        app.PDBxFile.writeFile(top_subset.to_openmm(), merged_trj.openmm_positions(0), handle, keepIds=True)
 
     logging.info('Done')
