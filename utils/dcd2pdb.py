@@ -75,8 +75,9 @@ if __name__ == '__main__':
     # Write PDBs
     logging.info('Writing {} PDB files of {} atoms'.format(trj.n_frames, trj.n_atoms))
     froot = 'frame' if cmd.output is None else cmd.output
+    n_frames = len(str(len(trj)))  # 1: 1, 10: 2, 100: 3, ...
     for idx, frame in enumerate(trj, start=1):
-        frame_name = froot + '_' + str(idx) + '.pdb'
+        frame_name = froot + '_' + str(idx).zfill(n_frames) + '.pdb'
         frame.save(frame_name, force_overwrite=True)
         logging.info('Wrote frame {}/{} to \'{}\''.format(idx, trj.n_frames, frame_name))
 
