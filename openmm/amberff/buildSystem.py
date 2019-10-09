@@ -55,10 +55,6 @@ cmd = ap.parse_args()
 # Set random seed for reproducibility
 random.seed(cmd.seed)
 
-# Figure out platform
-if cmd.platform is not None:
-    cmd.platform = mm.Platform.getPlatformByName(cmd.platform)
-
 logging.info('Started')
 logging.info('Using:')
 logging.info('  initial structure: {}'.format(cmd.structure))

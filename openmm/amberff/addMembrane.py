@@ -167,4 +167,4 @@ else:
 cif_fname = get_filename(_fname)
 logging.info('Writing structure to \'{}\''.format(cif_fname))
 with open(cif_fname, 'w') as handle:
-    app.PDBxFile.writeFile(modeller.topology, modeller.positions, handle)
+    app.PDBxFile.writeFile(modeller.topology, modeller.positions, handle, keepIds=True)

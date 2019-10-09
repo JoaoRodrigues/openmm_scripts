@@ -37,10 +37,10 @@ ap.add_argument('structure', help='Input coordinate file (.cif)')
 # Options
 ap.add_argument('--output', type=str, default=None,
                 help='File name for minimized structure. Will *always* use mmCIF format.')
-ap.add_argument('--forcefield', type=str, default='amber99sbildn.xml',
-                help='Force field to build the system with.')
-ap.add_argument('--solvent', type=str, default='tip3p.xml',
-                help='Solvent model to use in minimization.')
+ap.add_argument('--forcefield', type=str, default='amber14-all.xml',
+                help='Force field XML file to parameterize system')
+ap.add_argument('--solvent', type=str, default='amber14/tip3p.xml',
+                help='Solvent XML file to parameterize solvent')
 ap.add_argument('--platform', type=str, default=None,
                 help='Platform to run calculations on.')
 ap.add_argument('--seed', type=int, default=917,

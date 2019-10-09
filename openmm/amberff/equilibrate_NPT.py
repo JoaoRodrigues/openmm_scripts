@@ -308,7 +308,7 @@ simulation.saveState(xml_fname)
 cif_fname = _utils.make_fname_serial(rootname + '.cif')
 logging.info(f'Writing final structure to \'{cif_fname}\'')
 with open(cif_fname, 'w') as handle:
-    app.PDBxFile.writeFile(structure.topology, xyz, handle)
+    app.PDBxFile.writeFile(structure.topology, xyz, handle, keepIds=True)
 
 # Write system without dummy atoms
 # Easier to redo system object
@@ -341,6 +341,6 @@ simulation.saveState(xml_fname)
 cif_fname = _utils.make_fname(rootname + '_noDUM' + '.cif')
 logging.info(f'Writing dummy-less structure to \'{cif_fname}\'')
 with open(cif_fname, 'w') as handle:
-    app.PDBxFile.writeFile(model.topology, xyz[:n_ini_atoms], handle)
+    app.PDBxFile.writeFile(model.topology, xyz[:n_ini_atoms], handle, keepIds=True)
 
 logging.info('Finished')
