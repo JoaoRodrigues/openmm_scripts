@@ -1,2 +1,3 @@
 # Python compilation files
 *.so
+__pycache__
