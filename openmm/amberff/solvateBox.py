@@ -20,29 +20,13 @@ import simtk.openmm.app as app
 import simtk.openmm as mm
 import simtk.unit as units
 
+import _utils
+
 # Format logger
 logging.basicConfig(stream=sys.stdout,
                     level=logging.INFO,
                     format='[%(asctime)s] %(message)s',
                     datefmt='%Y/%m/%d %H:%M:%S')
-
-
-def get_filename(name):
-    """Finds and moves existing file with same name"""
-
-    if not os.path.isfile(name):
-        return name
-
-    rootname = name
-    num = 1
-    while 1:
-        name = '#{}.{}#'.format(rootname, num)
-        if os.path.isfile(name):
-            num += 1
-        else:
-            os.rename(rootname, name)
-            break
-    return rootname
 
 ##
 # Parse user input and options
@@ -53,9 +37,9 @@ ap.add_argument('structure', help='Input coordinate file (.cif or .pdb)')
 # Options
 ap.add_argument('--output', type=str, default=None,
                 help='File name for solvated system. Will *always* use mmCIF format.')
-ap.add_argument('--forcefield', type=str, default='amber99sbildn.xml',
+ap.add_argument('--forcefield', type=str, default='amber14-all.xml',
                 help='Force field to build the system with.')
-ap.add_argument('--solvent', type=str, default='tip3p.xml',
+ap.add_argument('--solvent', type=str, default='amber14/tip3p.xml',
                 help='Solvent model to use in minimization.')
 ap.add_argument('--neutralize', action='store_true',
                 help='Adds counter-ions to neutralize total system charge.')
@@ -71,10 +55,6 @@ cmd = ap.parse_args()
 # Set random seed for reproducibility
 random.seed(cmd.seed)
 
-# Figure out platform
-if cmd.platform is not None:
-    cmd.platform = mm.Platform.getPlatformByName(cmd.platform)
-
 logging.info('Started')
 logging.info('Using:')
 logging.info('  initial structure: {}'.format(cmd.structure))
@@ -85,26 +65,7 @@ if cmd.neutralize:
 logging.info('  random seed: {}'.format(cmd.seed))
 
 # Set platform-specific properties
-properties = {}
-if cmd.platform:
-    platform_name = cmd.platform.getName()
-    logging.info('  platform: {}'.format(platform_name))
-
-    if platform_name == 'CUDA':
-        properties = {'CudaPrecision': 'mixed'}
-
-        gpu_ids = os.getenv('CUDA_VISIBLE_DEVICES').split(',')
-        n_gpu = len(gpu_ids)
-        logging.info('  no. of GPUs: {}'.format(n_gpu))
-
-        if gpu_ids:
-            gpu_ids = [str(i) for i, _ in enumerate(gpu_ids)]
-            properties['DeviceIndex'] = ','.join(gpu_ids)
-
-    elif platform_name == 'CPU':
-        cpu_threads = os.getenv('SLURM_CPUS_PER_TASK')
-        if cpu_threads:
-            properties['Threads'] = cpu_threads
+platform, plat_properties = _utils.get_platform(cmd.platform)
 
 # Figure out input file format from extension
 fname, fext = os.path.splitext(cmd.structure)
@@ -156,7 +117,7 @@ if cmd.output:
 else:
     _fname = fname + '_solvated' + '.cif'
 
-cif_fname = get_filename(_fname)
+cif_fname = _utils.make_fname(_fname)
 logging.info('Writing structure to \'{}\''.format(cif_fname))
 with open(cif_fname, 'w') as handle:
-    app.PDBxFile.writeFile(modeller.topology, modeller.positions, handle)
+    app.PDBxFile.writeFile(modeller.topology, modeller.positions, handle, keepIds=True)
