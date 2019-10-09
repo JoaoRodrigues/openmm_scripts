@@ -83,6 +83,10 @@ ap.add_argument('--hmr', action='store_true', default=False,
                 help='Use Hydrogen Mass Repartitioning.')
 ap.add_argument('--membrane', action='store_true', default=False,
                 help='Enables options for membranes, e.g. restraints, tension')
+
+ap.add_argument('--gentle', action='store_true', default=False,
+                help='Auto settings: lower ladder-step-temp and longer -num-steps')
+
 cmd = ap.parse_args()
 
 logging.info('Started')
@@ -203,6 +207,10 @@ logging.info(f'Writing coordinates to \'{dcd_fname}\'')
 logging.info(f'Writing checkpoint file to \'{cpt_fname}\'')
 logging.info(f'Writing simulation log to \'{log_fname}\'')
 
+
+if cmd.gentle:  # for tricky systems
+  cmd.ladder_step_temperature = 10
+  cmd.ladder_num_steps = 2000
 
 # Run simulation
 counter = 0
