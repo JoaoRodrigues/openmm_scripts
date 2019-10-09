@@ -15,7 +15,7 @@ then
   cython -a $pyxFile
 fi
 
-PYTHON_INCLUDE=$( python -c "from distutils import sysconfig; print sysconfig.get_python_inc()" )
-NUMPY_INCLUDE=$( python -c "import numpy; print numpy.get_include()" )
+PYTHON_INCLUDE=$( python -c "from distutils import sysconfig; print(sysconfig.get_python_inc())" )
+NUMPY_INCLUDE=$( python -c "import numpy; print(numpy.get_include())" )
 gcc -shared -pthread -fPIC -fwrapv -O2 -Wall -fno-strict-aliasing -I${PYTHON_INCLUDE} -I$NUMPY_INCLUDE -o ${pyxFile%%.pyx}.so ${pyxFile%%.pyx}.c
 
