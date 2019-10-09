@@ -64,7 +64,7 @@ logging.info('Using:')
 logging.info('  trajectory: {}'.format(cmd.trajectory))
 logging.info('  topology: {}'.format(cmd.topology))
 logging.info('  stride: {}'.format(cmd.stride))
-logging.info('  solvent: {}'.format(cmd.solvent))
+logging.info('  solvent: {}'.format(cmd.keep_solvent))
 
 # Read topology
 mol = app.PDBxFile(cmd.topology)
