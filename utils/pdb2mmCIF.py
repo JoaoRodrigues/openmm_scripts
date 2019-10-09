@@ -30,4 +30,4 @@ else:
 
 print('Writing completed structure in CIF format: {}'.format(ofname))
 with open('{}'.format(ofname), 'w') as handle:
-    PDBxFile.writeFile(fixer.topology, fixer.positions, handle)
+    PDBxFile.writeFile(fixer.topology, fixer.positions, handle, keepIds=True)
