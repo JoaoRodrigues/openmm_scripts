@@ -119,10 +119,10 @@ fi
 if [ ! -f "Eq_NVT.cif" ]
 then
   echo ">> Equilibration under NVT ..."
-  python ${SDIR}/equilibrate_NVT.py system_ions_EM.cif \
+  python ${SDIR}/equilibrate_NVT.py system_heated.cif \
     --temperature 310 \
     --seed $SEED \
-    --state system_310K.cpt \
+    --state system_heated.cpt \
     --runtime 5 \
     --restraint-heavy-atom \
     --restraint-heavy-atom-k 500 \
@@ -188,6 +188,7 @@ else
 fi
 
 # (11) Last round of equilibration. No restraints.
+# Load state from XML file labelled noDUM.
 if [ ! -f "Eq_NPT_noPR.cif" ]
 then
   echo ">> Equilibration under NPT (k=0) ..."
@@ -195,7 +196,7 @@ then
     --temperature 310 \
     --barostat isotropic \
     --seed $SEED \
-    --state Eq_NPT_k50.cpt \
+    --state Eq_NPT_k50_noDUM.xml \
     --runtime 5 \
     --output Eq_NPT_noPR &> Eq_NPT_noPR.runlog
   [[ "$?" -ne 0 ]] && exit 1
