@@ -111,17 +111,29 @@ fname, fext = os.path.splitext(cmd.structure)
 
 # Read structure
 structure = app.PDBxFile(cmd.structure)
-forcefield = app.ForceField(cmd.forcefield)
+forcefield = app.ForceField(cmd.forcefield, cmd.solvent)
 modeller = app.Modeller(structure.topology, structure.positions)
 bvec = modeller.topology.getPeriodicBoxVectors()
 
+# Water model
+if 'tip3p' in cmd.solvent:
+    solvent_model = 'tip3p'
+elif 'spce' in cmd.solvent:
+    solvent_model = 'spce'
+elif 'tip4pew' in cmd.solvent:
+    solvent_model = 'tip4pew'
+elif 'tip5p' in cmd.solvent:
+    solvent_model = 'tip5p'
+else:
+    raise ValueError('Unknown water model: {}'.format(cmd.solvent))
+
 # Add hydrogens according to force field
 if cmd.neutralize:
-    modeller.addSolvent(forcefield, model=cmd.solvent[:-4], boxVectors=bvec,
+    modeller.addSolvent(forcefield, model=solvent_model, boxVectors=bvec,
                         neutralize=cmd.neutralize,
                         ionicStrength=cmd.ionic_strength*units.molar)
 else:
-    modeller.addSolvent(forcefield, model=cmd.solvent[:-4], boxVectors=bvec,
+    modeller.addSolvent(forcefield, model=solvent_model, boxVectors=bvec,
                         neutralize=False)
 
 n_atm = modeller.topology.getNumAtoms()
