@@ -212,22 +212,27 @@ then
   exit 1
 fi
 
-exit 1
+#
+# Production Simulation
+#
 
 # (12) Run production simulation
+# 5 fs time step with HMR
+# xyz every .1 ns, log every .1 ns
 if [ ! -f "production.cif" ]
 then
   echo ">> Running production simulation ..."
-  python ${SDIR}/runProduction.py equilibrate_NPT_k0.cif \
-    --state equilibrate_NPT_k0.xml \
-    --write-frequency 10000 \
-    --log-frequency 1000 \
-    --temperature 310 \
-    --isobaric \
-    --runtime 100 \
+  python ${SDIR}/runProduction.py Eq_NPT_noPR_noDUM.cif \
+    --hmr \
+    --state Eq_NPT_noPR_noDUM.xml \
+    --xyz-frequency 20000 \
+    --log-frequency 20000 \
+    --barostat isotropic \
+    --runtime 200 \
     --seed $SEED \
     --output production
 else
   echo "'runProduction' finished successfully before..."
   echo "Nothing to do here .."
 fi
+
