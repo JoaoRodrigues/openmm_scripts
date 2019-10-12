@@ -34,66 +34,66 @@ then
 fi
 
 # (1) Build 'system': add Hs, process through force field.
-if [ ! -f "system_H.cif" ]
+if [ ! -f "solute_H.cif" ]
 then
   echo ">> Building system ..."
   python ${SDIR}/buildSystem.py $initialStructure \
     --seed $SEED \
-    --output system_H.cif &> buildSystem.runlog
+    --output solute_H.cif &> buildSystem.runlog
   [[ "$?" -ne 0 ]] && exit 1
 else
   echo "'buildSystem' finished successfully before..."
 fi
 
 # (2) Add periodic box
-if [ ! -f "system_PBC.cif" ]
+if [ ! -f "solute_PBC.cif" ]
 then
   echo ">> Adding periodic boundary conditions ..."
-  python ${SDIR}/setPeriodicBox.py system_H.cif \
+  python ${SDIR}/setPeriodicBox.py solute_H.cif \
     --seed $SEED \
     --padding 1.1 \
     --boxtype cubic \
-    --output system_PBC.cif &> setPeriodicBox.runlog
+    --output solute_PBC.cif &> setPeriodicBox.runlog
   [[ "$?" -ne 0 ]] && exit 1
 else
   echo "'setPeriodicBox' finished successfully before..."
 fi
 
 # (3) Do restrained energy minimization to optimize Hs and clear strains
-if [ ! -f "system_EM.cif" ]
+if [ ! -f "solute_EM.cif" ]
 then
   echo ">> Minimizing system in vacuum ..."
-  python ${SDIR}/minimizeSystem.py system_PBC.cif \
+  python ${SDIR}/minimizeSystem.py solute_PBC.cif \
     --iterations 1000 \
     --posre \
     --seed $SEED \
-    --output system_EM.cif &> system_EM.runlog
+    --output solute_EM.cif &> solute_EM.runlog
   [[ "$?" -ne 0 ]] && exit 1
 else
   echo "'minimizeSystem' in vacuum finished successfully before..."
 fi
 
 # (4) Add solvent and counter ions to physiological concentration
-if [ ! -f "system_ions.cif" ]
+if [ ! -f "solvated.cif" ]
 then
   echo ">> Solvating solute and neutralizing system ..."
-  python ${SDIR}/solvateBox.py system_EM.cif \
+  python ${SDIR}/solvateBox.py solute_EM.cif \
     --neutralize \
     --seed $SEED \
-    --output system_ions.cif &> solvateBox.runlog
+    --output solvated.cif &> solvateBox.runlog
   [[ "$?" -ne 0 ]] && exit 1
 else
   echo "'solvateBox' finished successfully before..."
 fi
 
 # (5) Minimize the solvated system to optimize solvent and ion positions
-if [ ! -f "system_ions_EM.cif" ]
+if [ ! -f "solvated_EM.cif" ]
 then
   echo ">> Minimizing solvated system ..."
-  python ${SDIR}/minimizeSystem.py system_ions.cif \
+  python ${SDIR}/minimizeSystem.py solvated.cif \
     --posre \
     --seed $SEED \
-    --output system_ions_EM.cif &> system_ions_EM.runlog
+    --output solvated_EM.cif &> solvated_EM.runlog
   [[ "$?" -ne 0 ]] && exit 1
 else
   echo "'minimizeSystem' in explicit solvent finished successfully before..."
@@ -103,7 +103,7 @@ fi
 if [ ! -f "system_heated.cif" ]
 then
   echo ">> Heating system ..."
-  python ${SDIR}/heatSystem.py system_ions_EM.cif \
+  python ${SDIR}/heatSystem.py solvated_EM.cif \
     --temperature 310 \
     --seed $SEED \
     --output system_heated &> heatSystem.runlog
