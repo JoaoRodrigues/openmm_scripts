@@ -58,28 +58,28 @@ def make_fname(name):
 
 def make_fname_serial(name, suffix='_part_'):
     """
-    Function to find and rename file with same name. Meant for serial files
+    Function to find and rename file with same name. Meant for serial files.
     """
 
-    rootname, ext = os.path.splitext(name)
-    # look for existing parts
-    prev = [f for f in os.listdir('.')
-            if f.startswith(rootname + suffix) and f.endswith(ext)]
+    if os.path.isfile(name): # File exists
+        rootname, ext = os.path.splitext(name)
+        part_num = 0
 
-    if prev:
-        # Get last part number
-        re_partnum = re.compile('{}([0-9]+)\{}'.format(rootname + suffix, ext))
-        finder = lambda x: int(re_partnum.search(x).group(1))
-        part_num = max([finder(f) for f in prev]) + 1
-        return rootname + suffix + str(part_num) + ext
+        # look for existing parts
+        prev = [f for f in os.listdir('.')
+                if f.startswith(rootname + suffix) and f.endswith(ext)]
 
-    elif os.path.isfile(name): # First part already there
-        exst_part = rootname + suffix + '0'  + ext
-        os.rename(name, exst_part)
-        return rootname + suffix + '1' + ext
+        if prev:  # Get last part number
+            re_partnum = re.compile('{}([0-9]+)\{}'.format(rootname + suffix, ext))
+            finder = lambda x: int(re_partnum.search(x).group(1))
+            part_num = max([finder(f) for f in prev]) + 1
 
-    else:
-        return name
+        new_fname = rootname + suffix + str(part_num) + ext
+        logging.info('Renaming partial file {}: {}'.format(name, new_fname))
+
+        os.rename(name, new_fname)  # rename existing file
+
+    return name
 
 # OpenMM Utilities
 
