@@ -67,6 +67,7 @@ logging.info('  stride: {}'.format(cmd.stride))
 logging.info('  solvent: {}'.format(cmd.keep_solvent))
 
 # Read topology
+# mdtraj topology loses chain information
 mol = app.PDBxFile(cmd.topology)
 top = md.Topology.from_openmm(mol.topology)
 
@@ -99,10 +100,53 @@ logging.info('Writing reimaged trajectory to \'{}\''.format(reimaged_fname))
 reimaged.save_dcd(reimaged_fname, force_overwrite=True)
 
 # Write new topology (subset of atoms)
+# This is super annoying because the OpenMM->mdtraj screws up
+# chain naming and residue numbering.
+# We assume order is maintained within chains
+# and that there are no gaps.
+logging.info('Fixing chain/residue numbering')
+new_topology = app.Topology()
+
+# Extract sequences from OpenMM topology
+seqs = {}
+reslists = {}
+for openmm_chain in mol.topology.chains():
+    chain_seq = [r.name for r in openmm_chain.residues()]
+    seqs[openmm_chain.id] = tuple(chain_seq)
+    reslists[openmm_chain.id] = list(openmm_chain.residues())
+
+mdtraj_top = reimaged.top.to_openmm()
+for mdtraj_chain in mdtraj_top.chains():
+    chain_seq = tuple([r.name for r in mdtraj_chain.residues()])
+    for chain, seq in seqs.items():
+        if chain_seq == seq:
+            logging.debug('Chain {} <> {}'.format(mdtraj_chain.id, chain))
+            break
+    else:
+        msg = 'Chain not matched in OpenMM topology: {}'
+        logging.error(msg.format(mdtraj_chain.id))
+        sys.exit(1)
+
+    openmm_reslist = reslists[chain]
+    mdtraj_reslist = [r for r in mdtraj_chain.residues()]
+    assert len(openmm_reslist) == len(mdtraj_reslist)
+
+    # Rebuild new topology
+    new_chain = new_topology.addChain(chain)
+    for resO, resM in zip(openmm_reslist, mdtraj_reslist):
+        assert resO.name == resM.name
+        new_res = new_topology.addResidue(resO.name, new_chain, 
+                                          resO.id, resO.insertionCode)
+        atomsO = list(resO.atoms())
+        atomsM = list(resM.atoms())
+        for aO, aM in zip(atomsO, atomsM):
+            assert aO.name == aM.name
+            new_topology.addAtom(aO.name, aO.element, new_res, aO.id)
+
 reimaged_top_fname = cmd.output + '.cif'
 logging.info('Writing first frame to \'{}\''.format(reimaged_top_fname))
 
 last_idx = reimaged.n_frames - 1
 with open('{}'.format(reimaged_top_fname), 'w') as handle:
-    app.PDBxFile.writeFile(reimaged.top.to_openmm(),
+    app.PDBxFile.writeFile(new_topology,
                            reimaged.openmm_positions(last_idx), handle, keepIds=True)
