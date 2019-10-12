@@ -103,14 +103,14 @@ else
 fi
 
 # (6) Heat the system to the desired temperature in gradual steps
-if [ ! -f "system_heated.cif" ]
+if [ ! -f "membrane_Heat.cif" ]
 then
   echo ">> Heating system ..."
   python ${SDIR}/heatSystem.py membrane_EM.cif \
     --membrane \
     --temperature 310 \
     --seed $SEED \
-    --output system_heated &> heatSystem.runlog
+    --output membrane_Heat &> heatSystem.runlog
   [[ "$?" -ne 0 ]] && exit 1
 else
   echo "'heatSystem' finished successfully before..."
@@ -124,10 +124,10 @@ fi
 if [ ! -f "Eq_NVT.cif" ]
 then
   echo ">> Equilibration under NVT ..."
-  python ${SDIR}/equilibrate_NVT.py system_heated.cif \
+  python ${SDIR}/equilibrate_NVT.py membrane_Heat.cif \
     --temperature 310 \
     --seed $SEED \
-    --state system_heated.cpt \
+    --state membrane_Heat.cpt \
     --runtime 2.5 \
     --restraint-heavy-atom \
     --restraint-heavy-atom-k 500 \
@@ -271,20 +271,37 @@ fi
 # (12) Run production simulation
 # 5 fs time step with HMR
 # xyz every .1 ns, log every .1 ns
+
 if [ ! -f "production.cif" ]
 then
-  echo ">> Running production simulation ..."
-  python ${SDIR}/runProduction.py Eq_NPT_noPR_noDUM.cif \
-    --hmr \
-    --state Eq_NPT_noPR_noDUM.xml \
-    --xyz-frequency 20000 \
-    --log-frequency 20000 \
-    --barostat membrane \
-    --runtime 200 \
-    --seed $SEED \
-    --output production
+  if [ -f "production.dcd" ]
+  then
+    echo ">> Continuing production simulation ..."
+    python ${SDIR}/runProduction.py Eq_NPT_noPR_noDUM.cif \
+      --continuation \
+      --hmr \
+      --state production.cpt \
+      --xyz-frequency 20000 \
+      --log-frequency 20000 \
+      --barostat membrane \
+      --runtime 200 \
+      --seed $SEED \
+      --output production >> production.runlog 2>&1
+  else
+    echo ">> Running production simulation ..."
+    python ${SDIR}/runProduction.py Eq_NPT_noPR_noDUM.cif \
+      --hmr \
+      --state Eq_NPT_noPR_noDUM.xml \
+      --xyz-frequency 20000 \
+      --log-frequency 20000 \
+      --barostat membrane \
+      --runtime 200 \
+      --seed $SEED \
+      --output production &> production.runlog
+  fi
 else
   echo "'runProduction' finished successfully before..."
-  echo "Nothing to do here .."
 fi
 
+echo "Nothing to do here .."
+exit 0
