@@ -118,6 +118,7 @@ fi
 
 #
 # Equilibrate the system
+# 6x2.5 + 1x5 = 20ns total
 #
 # (7) Do first round of equilibration: NVT
 if [ ! -f "Eq_NVT.cif" ]
@@ -181,6 +182,8 @@ else
 fi
 
 # (9b) No Lipid Restraints
+# We keep the --restraint-lipid otherwise we get
+# a mismatch of DUM atom numbers (prot+lipid or none).
 if [ ! -f "Eq_NPT_k500.cif" ]
 then
   echo ">> Equilibration under NPT (k=500/0) ..."
@@ -188,8 +191,10 @@ then
     --temperature 310 \
     --barostat membrane \
     --seed $SEED \
-    --state Eq_NPT_k500_k100_noDUM.cpt \
+    --state Eq_NPT_k500_k100_noDUM.xml \
     --runtime 2.5 \
+    --restraint-lipids \
+    --restraint-lipids-k 0 \
     --restraint-heavy-atom \
     --restraint-heavy-atom-k 500 \
     --output Eq_NPT_k500 &> Eq_NPT_k500.runlog
@@ -201,7 +206,7 @@ fi
 # (10a) Gradually release protein heavy atom restraints
 if [ ! -f "Eq_NPT_k250.cif" ]
 then
-  echo ">> Equilibration under NPT (k=500/0) ..."
+  echo ">> Equilibration under NPT (k=250/0) ..."
   python ${SDIR}/equilibrate_NPT.py Eq_NPT_k500.cif \
     --temperature 310 \
     --barostat membrane \
@@ -219,7 +224,7 @@ fi
 # (10b)
 if [ ! -f "Eq_NPT_k50.cif" ]
 then
-  echo ">> Equilibration under NPT (k=500/0) ..."
+  echo ">> Equilibration under NPT (k=50/0) ..."
   python ${SDIR}/equilibrate_NPT.py Eq_NPT_k250.cif \
     --temperature 310 \
     --barostat membrane \
@@ -235,10 +240,11 @@ else
 fi
 
 # (11) Last round of equilibration. No restraints.
+# Slightly longer
 if [ ! -f "Eq_NPT_noPR.cif" ]
 then
   echo ">> Equilibration under NPT (k=0) ..."
-  python ${SDIR}/equilibrate_NPT.py Eq_NPT_k50.cif \
+  python ${SDIR}/equilibrate_NPT.py Eq_NPT_k50_noDUM.cif \
     --temperature 310 \
     --barostat membrane \
     --seed $SEED \

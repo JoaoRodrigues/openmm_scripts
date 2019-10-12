@@ -192,7 +192,7 @@ fi
 if [ ! -f "Eq_NPT_noPR.cif" ]
 then
   echo ">> Equilibration under NPT (k=0) ..."
-  python ${SDIR}/equilibrate_NPT.py Eq_NPT_k50.cif \
+  python ${SDIR}/equilibrate_NPT.py Eq_NPT_k50_noDUM.cif \
     --temperature 310 \
     --barostat isotropic \
     --seed $SEED \
