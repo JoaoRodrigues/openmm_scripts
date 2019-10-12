@@ -45,8 +45,10 @@ ap.add_argument('--neutralize', action='store_true',
                 help='Adds counter-ions to neutralize total system charge.')
 ap.add_argument('--ionic-strength', type=float, default=0.15,
                 help='Molar concentration of counter-ions. Default is 0.15M.')
-ap.add_argument('--platform', type=str, default=None,
-                help='Platform to run calculations on. Defaults to fastest available.')
+ap.add_argument('--cation', type=str, default='Na+',
+                 help='Positive ion used to neutralize system charge.')
+ap.add_argument('--anion', type=str, default='Cl-',
+                 help='Negative ion used to neutralize system charge.')
 ap.add_argument('--seed', type=int, default=917,
                 help='Seed number for random number generator(s).')
 
@@ -60,12 +62,12 @@ logging.info('Using:')
 logging.info('  initial structure: {}'.format(cmd.structure))
 logging.info('  force field: {}'.format(cmd.forcefield))
 logging.info('  solvent model: {}'.format(cmd.solvent))
-if cmd.neutralize:
-    logging.info('  neutralizing system with {}M of counter-ions.'.format(cmd.ionic_strength))
 logging.info('  random seed: {}'.format(cmd.seed))
-
-# Set platform-specific properties
-platform, plat_properties = _utils.get_platform(cmd.platform)
+if cmd.neutralize:
+    msg = '  neutralizing system with {}M of counter-ions.'
+    logging.info(msg.format(cmd.ionic_strength))
+    logging.info('  cation: {}'.format(cmd.cation))
+    logging.info('  anion: {}'.format(cmd.anion))
 
 # Figure out input file format from extension
 fname, fext = os.path.splitext(cmd.structure)
@@ -92,7 +94,9 @@ else:
 if cmd.neutralize:
     modeller.addSolvent(forcefield, model=solvent_model, boxVectors=bvec,
                         neutralize=cmd.neutralize,
-                        ionicStrength=cmd.ionic_strength*units.molar)
+                        ionicStrength=cmd.ionic_strength*units.molar,
+                        positiveIon=cmd.cation,
+                        negativeIon=cmd.anion)
 else:
     modeller.addSolvent(forcefield, model=solvent_model, boxVectors=bvec,
                         neutralize=False)
