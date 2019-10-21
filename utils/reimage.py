@@ -115,6 +115,9 @@ for openmm_chain in mol.topology.chains():
     seqs[openmm_chain.id] = tuple(chain_seq)
     reslists[openmm_chain.id] = list(openmm_chain.residues())
 
+# Mapping of old atom index to new atom index
+atom_map = {}
+
 mdtraj_top = reimaged.top.to_openmm()
 for mdtraj_chain in mdtraj_top.chains():
     chain_seq = tuple([r.name for r in mdtraj_chain.residues()])
@@ -141,7 +144,26 @@ for mdtraj_chain in mdtraj_top.chains():
         atomsM = list(resM.atoms())
         for aO, aM in zip(atomsO, atomsM):
             assert aO.name == aM.name
-            new_topology.addAtom(aO.name, aO.element, new_res, aO.id)
+            new_atom = new_topology.addAtom(aO.name, aO.element, new_res, aO.id)
+            atom_map[aO.index] = new_atom.index
+
+logging.info('Adding bonds to new topology')
+# Add bonds to new topology
+atom_list =list(new_topology.atoms())
+for b in mol.topology.bonds():
+    ai, aj = b
+    new_ai_idx = atom_map.get(ai.index, None)
+    new_aj_idx = atom_map.get(aj.index, None)
+    if new_ai_idx is not None and new_aj_idx is not None:
+        new_ai = atom_list[new_ai_idx]
+        new_aj = atom_list[new_aj_idx]
+        new_topology.addBond(new_ai, new_aj, type=b.type, order=b.order)
+    else:
+        logging.warn(f'  ignoring bond: {b}. Error: {new_ai_idx} <> {new_aj_idx}')
+
+# Add box vectors to topology (last frame)
+boxvec = reimaged[-1].unitcell_vectors[0]
+new_topology.setPeriodicBoxVectors(boxvec)
 
 reimaged_top_fname = cmd.output + '.cif'
 logging.info('Writing first frame to \'{}\''.format(reimaged_top_fname))
