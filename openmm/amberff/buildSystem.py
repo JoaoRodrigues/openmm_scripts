@@ -76,7 +76,7 @@ else:
 
 # Read structure
 structure = parser(cmd.structure)
-forcefield = app.ForceField(cmd.forcefield)
+forcefield = app.ForceField(cmd.forcefield, cmd.solvent)
 modeller = app.Modeller(structure.topology, structure.positions)
 
 # Add hydrogens according to force field
@@ -85,7 +85,7 @@ if not cmd.keepH:
     _elem_H = app.element.hydrogen
     hydrogens = [a for a in modeller.topology.atoms() if a.element == _elem_H]
     modeller.delete(hydrogens)
-    modeller.addHydrogens(forcefield=forcefield, pH=7.0)
+modeller.addHydrogens(forcefield=forcefield, pH=7.0)
 
 # Write complete structure
 if cmd.output:
